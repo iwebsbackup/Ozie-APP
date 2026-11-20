@@ -1,0 +1,61 @@
+
+# Sensitive Keys & Config (DO NOT COMMIT)
+# ==========================================
+.env
+.env.*
+.env.local
+*.env
+
+firebase-service-account.json
+*service-account*.json
+*firebase-adminsdk*.json
+android/app/google-services.json
+GoogleService-Info.plist
+firebase.json
+
+lib/firebase_options.dart
+lib/core/config.dart
+lib/screens/config.dart
+
+*.jks
+*.keystore
+key.properties
+android/key.properties
+android/app/key.properties
+
+config.php
+secrets.php
+secret.json
+secrets.json
+
+# ==========================================
+# Flutter / Dart Build
+# ==========================================
+build/
+.dart_tool/
+.packages
+.flutter-plugins
+.flutter-plugins-dependencies
+*.iml
+.metadata
+
+# ==========================================
+# IDE
+# ==========================================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ==========================================
+# OS
+# ==========================================
+.DS_Store
+Thumbs.db
+
+# ==========================================
+# Logs / Temp
+# ==========================================
+*.log
+*.tmp

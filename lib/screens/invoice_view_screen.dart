@@ -280,7 +280,7 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
           child: Icon(icon, size: 19, color: AppColors.blue),
         ),
         const SizedBox(width: 10),
-        Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        Flexible(child: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis)),
       ],
     );
   }
@@ -375,10 +375,9 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
           const SizedBox(height: 6),
           Row(
             children: [
-              Text(
+              Flexible(child: Text(
                 'Qty ${it.quantity} x ${formatInr(it.unitPrice)}',
-                style: const TextStyle(fontSize: 14, color: AppColors.muted),
-              ),
+                style: const TextStyle(fontSize: 14, color: AppColors.muted), maxLines: 1, overflow: TextOverflow.ellipsis)),
               if (discounted) ...[
                 const SizedBox(width: 6),
                 Text(

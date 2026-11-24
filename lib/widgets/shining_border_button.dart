@@ -56,10 +56,14 @@ class _ShiningBorderButtonState extends State<ShiningBorderButton>
         child: CircularProgressIndicator(strokeWidth: 2, color: color),
       );
     }
-    return Text(
-      widget.label,
-      maxLines: 1,
-      style: TextStyle(fontSize: widget.fontSize, fontWeight: FontWeight.w600, color: color),
+    // Shrinks the label instead of overflowing on narrow screens.
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Text(
+        widget.label,
+        maxLines: 1,
+        style: TextStyle(fontSize: widget.fontSize, fontWeight: FontWeight.w600, color: color),
+      ),
     );
   }
 

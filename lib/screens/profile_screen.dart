@@ -572,14 +572,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Icon(icon, size: 18, color: tint),
               ),
               const SizedBox(width: 10),
-              Text(
+              Flexible(child: Text(
                 title,
                 style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
                   color: AppColors.text,
-                ),
-              ),
+                ), maxLines: 1, overflow: TextOverflow.ellipsis)),
             ],
           ),
           const SizedBox(height: 10),

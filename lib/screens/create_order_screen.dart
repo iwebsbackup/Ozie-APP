@@ -438,14 +438,13 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                 Icon(icon,
                     size: 17, color: selected ? Colors.white : AppColors.muted),
                 const SizedBox(width: 8),
-                Text(
+                Flexible(child: Text(
                   label,
                   style: TextStyle(
                     fontSize: 13.5,
                     fontWeight: FontWeight.w700,
                     color: selected ? Colors.white : AppColors.muted,
-                  ),
-                ),
+                  ), maxLines: 1, overflow: TextOverflow.ellipsis)),
               ],
             ),
           ),
@@ -646,14 +645,13 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
               Icon(Icons.local_offer_outlined,
                   size: 18, color: AppColors.successText),
               SizedBox(width: 8),
-              Text(
+              Flexible(child: Text(
                 'Active schemes for you',
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
                   color: AppColors.text,
-                ),
-              ),
+                ), maxLines: 1, overflow: TextOverflow.ellipsis)),
             ],
           ),
           const SizedBox(height: 12),

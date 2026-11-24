@@ -556,13 +556,22 @@ class _DraftCardState extends State<_DraftCard> {
           ),
           Row(
             children: [
-              Text('${formatInr(it.productPrice)} each',
-                  style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+              // Wraps to 2 lines on narrow screens instead of overflowing.
+              Expanded(
+                child: Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8,
+                  runSpacing: 2,
+                  children: [
+                    Text('${formatInr(it.productPrice)} each',
+                        style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+                    if (it.stockLabel.isNotEmpty)
+                      Text(it.stockLabel,
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _stockColor(it.stockClass))),
+                  ],
+                ),
+              ),
               const SizedBox(width: 8),
-              if (it.stockLabel.isNotEmpty)
-                Text(it.stockLabel,
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _stockColor(it.stockClass))),
-              const Spacer(),
               _stepper(it),
               const SizedBox(width: 10),
               SizedBox(

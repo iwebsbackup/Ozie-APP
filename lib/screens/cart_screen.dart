@@ -3,6 +3,7 @@ import 'package:hugeicons/hugeicons.dart';
 
 import '../core/api_client.dart';
 import '../core/models.dart';
+import '../core/responsive.dart';
 import '../core/retailer_service.dart';
 import '../widgets/app_widgets.dart';
 import '../widgets/shining_border_button.dart';
@@ -453,13 +454,13 @@ class _CartScreenState extends State<CartScreen> {
             ),
             const SizedBox(height: 8),
             SizedBox(
-              height: 92,
+              height: context.fitText(92),
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: strip.products.length,
                 separatorBuilder: (context, index) => const SizedBox(width: 10),
                 itemBuilder: (context, i) => SizedBox(
-                  width: 264,
+                  width: (context.sw * 0.78).clamp(240.0, 300.0),
                   child: _suggestedCard(strip.products[i]),
                 ),
               ),

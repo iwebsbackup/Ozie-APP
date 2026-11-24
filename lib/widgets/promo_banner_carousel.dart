@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../core/api_client.dart';
 import '../core/banner_models.dart';
+import '../core/responsive.dart';
 import '../core/retailer_service.dart';
 import 'app_widgets.dart';
 
@@ -156,7 +157,7 @@ class _PromoBannerCarouselState extends State<PromoBannerCarousel> {
         ),
         const SizedBox(height: 14),
         SizedBox(
-          height: 180,
+          height: (context.sw * 0.46).clamp(140.0, 230.0),
           child: PageView.builder(
             controller: _controller,
             itemCount: _banners.length,

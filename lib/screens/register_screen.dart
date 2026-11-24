@@ -129,14 +129,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 color: selected ? AppColors.successText : AppColors.muted,
               ),
               const SizedBox(width: 6),
-              Text(
+              Flexible(child: Text(
                 label,
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                   color: selected ? AppColors.successText : AppColors.muted,
-                ),
-              ),
+                ), maxLines: 1, overflow: TextOverflow.ellipsis)),
             ],
           ),
         ),
@@ -284,10 +283,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Text(
+                Flexible(child: const Text(
                   'Already have an account? ',
-                  style: TextStyle(fontSize: 13, color: AppColors.muted),
-                ),
+                  style: TextStyle(fontSize: 13, color: AppColors.muted), maxLines: 1, overflow: TextOverflow.ellipsis)),
                 GestureDetector(
                   onTap: _loading ? null : () => Navigator.of(context).pop(),
                   child: const Text(

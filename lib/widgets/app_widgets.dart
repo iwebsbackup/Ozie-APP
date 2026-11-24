@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../core/responsive.dart';
+
+// Every screen already imports this file -> responsive helpers
+// (context.sw, context.isTablet, context.gridColumns ...) come with it.
+export '../core/responsive.dart';
+
 /// Visible height of the floating bottom nav (bar 64 + margin 16).
 /// Scroll lists add this to their bottom padding so the last item can
 /// scroll clear of the nav (content scrolls *behind* the glass bar).
@@ -162,11 +168,14 @@ class AuthScaffold extends StatelessWidget {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(context.isSmallPhone ? 12 : 16),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 400),
+              constraints: BoxConstraints(maxWidth: context.isTablet ? 460 : 400),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                padding: EdgeInsets.symmetric(
+                  horizontal: context.isSmallPhone ? 16 : 24,
+                  vertical: context.isSmallPhone ? 24 : 32,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.card,
                   borderRadius: BorderRadius.circular(12),

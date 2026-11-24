@@ -254,11 +254,10 @@ class _NotificationTile extends StatelessWidget {
                       const Icon(Icons.access_time_rounded,
                           size: 13, color: AppColors.muted),
                       const SizedBox(width: 4),
-                      Text(
+                      Flexible(child: Text(
                         when,
                         style: const TextStyle(
-                            fontSize: 12, color: AppColors.muted),
-                      ),
+                            fontSize: 12, color: AppColors.muted), maxLines: 1, overflow: TextOverflow.ellipsis)),
                     ],
                   ),
                 ],

@@ -228,10 +228,9 @@ class _WhereIsMyOrderScreenState extends State<WhereIsMyOrderScreen> {
                 const Icon(Icons.payments_outlined,
                     size: 15, color: AppColors.muted),
                 const SizedBox(width: 6),
-                Text(
+                Flexible(child: Text(
                   'Payment: ${method.isEmpty ? '-' : method}',
-                  style: const TextStyle(fontSize: 12.5, color: AppColors.muted),
-                ),
+                  style: const TextStyle(fontSize: 12.5, color: AppColors.muted), maxLines: 1, overflow: TextOverflow.ellipsis)),
               ],
             ),
           ),

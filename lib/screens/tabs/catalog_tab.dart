@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/api_client.dart';
 import '../../core/models.dart';
+import '../../core/responsive.dart';
 import '../../core/retailer_service.dart';
 import '../../widgets/app_widgets.dart';
 import '../../widgets/product_qty_button.dart';
@@ -30,6 +31,7 @@ class CatalogTabState extends State<CatalogTab>
   String? _error;
   bool _loading = true;
   bool _loadingMore = false;
+  bool _loadMoreFailed = false; // stops auto-fill retry loop after an error
   int _page = 1;
   int _categoryId = 0;
   String _brand = '';
@@ -88,9 +90,24 @@ class CatalogTabState extends State<CatalogTab>
     _load(page: _page + 1);
   }
 
+  /// Big screens / many columns can show the whole first page without any
+  /// scroll, so [_onScroll] never fires. Keep loading until the viewport is
+  /// filled (or there are no more pages).
+  void _fillViewportIfNeeded() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _loading || _loadingMore || _loadMoreFailed) return;
+      if (!_scroll.hasClients) return;
+      final p = _data?.pagination;
+      if (p == null || !p.hasNextPage) return;
+      final pos = _scroll.position;
+      if (pos.maxScrollExtent - pos.pixels < 400) _load(page: _page + 1);
+    });
+  }
+
   Future<void> _load({bool reset = false, int? page, bool force = false}) async {
     if (reset) {
       _page = 1;
+      _loadMoreFailed = false;
       _cartIds.clear();
       if (_data == null) {
         setState(() {
@@ -141,6 +158,7 @@ class CatalogTabState extends State<CatalogTab>
       if (!mounted) return;
       setState(() {
         if (_data == null) _error = e.message;
+        if (!reset) _loadMoreFailed = true;
         _loading = false;
         _loadingMore = false;
       });
@@ -292,77 +310,102 @@ class CatalogTabState extends State<CatalogTab>
     }
     if (_error != null && _data == null) {
       return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.cloud_off, size: 40, color: AppColors.muted),
-              const SizedBox(height: 12),
-              Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.dangerText)),
-              const SizedBox(height: 16),
-              FilledButton(onPressed: () => _load(reset: true), child: const Text('Retry')),
-            ],
+        child: SingleChildScrollView(
+          padding: EdgeInsets.all(context.pagePad + 8),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.cloud_off, size: 40, color: AppColors.muted),
+                const SizedBox(height: 12),
+                Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.dangerText)),
+                const SizedBox(height: 16),
+                FilledButton(onPressed: () => _load(reset: true), child: const Text('Retry')),
+              ],
+            ),
           ),
         ),
       );
     }
 
     final d = _data!;
-    return RefreshIndicator(
-      onRefresh: () => _load(reset: true, force: true),
-      child: CustomScrollView(
-        controller: _scroll,
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          SliverToBoxAdapter(child: _filters(d)),
-          if (d.scopeNotice.isNotEmpty)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                child: Text(d.scopeNotice, style: const TextStyle(fontSize: 13, color: AppColors.muted)),
-              ),
-            ),
-          if (d.products.isEmpty)
-            const SliverFillRemaining(
-              hasScrollBody: false,
-              child: Center(
-                child: Text('No products found', style: TextStyle(color: AppColors.muted)),
-              ),
-            )
-          else
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-              sliver: SliverGrid(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                  childAspectRatio: 0.74,
-                ),
-                delegate: SliverChildBuilderDelegate(
-                  (context, i) => _ProductCard(
-                    key: _keyFor(d.products[i].id),
-                    product: d.products[i],
-                    busy: _busy.contains(d.products[i].id),
-                    highlighted: widget.highlightProductId == d.products[i].id,
-                    onWish: () => _toggleWish(d.products[i]),
-                    onAdd: () => _addCart(d.products[i]),
-                    onMinus: () => _decCart(d.products[i]),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // All sizes come from the REAL available width (not the device), so
+        // phones, foldables, tablets, split-screen and rotation all work.
+        final w = constraints.maxWidth;
+        final pad = w <= 360 ? 12.0 : (w < 600 ? 16.0 : 24.0);
+        final gap = w <= 360 ? 8.0 : 12.0;
+        final cols = ((w - 2 * pad + gap) / (160 + gap)).floor().clamp(2, 5);
+        final tileW = (w - 2 * pad - gap * (cols - 1)) / cols;
+        final scale = (w / 392.0).clamp(0.82, 1.18).toDouble();
+        final textScale = MediaQuery.textScalerOf(context).scale(1.0);
+        // Card height = image (follows tile width) + text block
+        // (follows screen scale and font scale). No overflow anywhere.
+        final extent = tileW * 0.78 + 24 + 92 * scale * textScale;
+        final bottomInset = MediaQuery.paddingOf(context).bottom;
+
+        _fillViewportIfNeeded();
+
+        return RefreshIndicator(
+          onRefresh: () => _load(reset: true, force: true),
+          child: CustomScrollView(
+            controller: _scroll,
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverToBoxAdapter(child: _filters(d, pad)),
+              if (d.scopeNotice.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(pad, 0, pad, 12),
+                    child: Text(d.scopeNotice, style: const TextStyle(fontSize: 13, color: AppColors.muted)),
                   ),
-                  childCount: d.products.length,
                 ),
-              ),
-            ),
-          if (_loadingMore)
-            const SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.only(bottom: 24),
-                child: Center(child: CircularProgressIndicator()),
-              ),
-            ),
-        ],
-      ),
+              if (d.products.isEmpty)
+                const SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(
+                    child: Text('No products found', style: TextStyle(color: AppColors.muted)),
+                  ),
+                )
+              else
+                SliverPadding(
+                  padding: EdgeInsets.fromLTRB(pad, 0, pad, 24 + bottomInset),
+                  sliver: SliverGrid(
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: cols,
+                      mainAxisSpacing: gap,
+                      crossAxisSpacing: gap,
+                      mainAxisExtent: extent,
+                    ),
+                    delegate: SliverChildBuilderDelegate(
+                      (context, i) => _ProductCard(
+                        key: _keyFor(d.products[i].id),
+                        product: d.products[i],
+                        busy: _busy.contains(d.products[i].id),
+                        highlighted: widget.highlightProductId == d.products[i].id,
+                        scale: scale,
+                        tileWidth: tileW,
+                        onWish: () => _toggleWish(d.products[i]),
+                        onAdd: () => _addCart(d.products[i]),
+                        onMinus: () => _decCart(d.products[i]),
+                      ),
+                      childCount: d.products.length,
+                    ),
+                  ),
+                ),
+              if (_loadingMore)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.only(bottom: 24 + bottomInset),
+                    child: const Center(child: CircularProgressIndicator()),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -377,10 +420,10 @@ class CatalogTabState extends State<CatalogTab>
     _load(reset: true);
   }
 
-  Widget _filters(ProductsCatalog d) {
+  Widget _filters(ProductsCatalog d, double pad) {
     final allSelected = _categoryId == 0 && _brand.isEmpty;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      padding: EdgeInsets.fromLTRB(pad, 12, pad, 12),
       child: Row(
         children: [
           Expanded(
@@ -439,6 +482,8 @@ class CatalogTabState extends State<CatalogTab>
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
+      constraints: const BoxConstraints(maxWidth: 640),
       backgroundColor: AppColors.card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -447,7 +492,7 @@ class CatalogTabState extends State<CatalogTab>
         builder: (ctx, setSheet) => SafeArea(
           child: ConstrainedBox(
             constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(ctx).size.height * 0.8,
+              maxHeight: MediaQuery.sizeOf(ctx).height * 0.8,
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -628,6 +673,8 @@ class _ProductCard extends StatelessWidget {
   final ProductItem product;
   final bool busy;
   final bool highlighted;
+  final double scale; // 0.82 .. 1.18, from available width
+  final double tileWidth;
   final VoidCallback onWish;
   final VoidCallback onAdd;
   final VoidCallback onMinus;
@@ -636,6 +683,8 @@ class _ProductCard extends StatelessWidget {
     required this.product,
     required this.busy,
     this.highlighted = false,
+    this.scale = 1.0,
+    this.tileWidth = 160,
     required this.onWish,
     required this.onAdd,
     required this.onMinus,
@@ -644,6 +693,8 @@ class _ProductCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = product;
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final cacheW = (tileWidth * dpr).ceil().clamp(200, 800);
     return Container(
       decoration: BoxDecoration(
         color: AppColors.card,
@@ -667,7 +718,7 @@ class _ProductCard extends StatelessWidget {
                       ? Image.network(
                           p.photoUrl!,
                           fit: BoxFit.cover,
-                          cacheWidth: 400,
+                          cacheWidth: cacheW,
                           filterQuality: FilterQuality.low,
                           errorBuilder: (context, error, stack) => const Icon(Icons.image_outlined, color: AppColors.muted),
                         )
@@ -713,7 +764,7 @@ class _ProductCard extends StatelessWidget {
                       ),
                       child: Text(
                         '${p.discountPct}% OFF',
-                        style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700),
+                        style: TextStyle(color: Colors.white, fontSize: 10 * scale, fontWeight: FontWeight.w700),
                       ),
                     ),
                   ),
@@ -729,16 +780,16 @@ class _ProductCard extends StatelessWidget {
                   p.name,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.text),
+                  style: TextStyle(fontSize: 13 * scale, fontWeight: FontWeight.w600, color: AppColors.text),
                 ),
                 if (p.brand.isNotEmpty)
-                  Text(p.brand, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, color: AppColors.muted)),
+                  Text(p.brand, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11 * scale, color: AppColors.muted)),
                 const SizedBox(height: 4),
                 Row(
                   children: [
                     Text(
                       formatInr(p.billingCase, decimals: false),
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.text),
+                      style: TextStyle(fontSize: 14 * scale, fontWeight: FontWeight.w700, color: AppColors.text),
                     ),
                     if (p.mrpCase > p.billingCase) ...[
                       const SizedBox(width: 6),
@@ -746,8 +797,8 @@ class _ProductCard extends StatelessWidget {
                         child: Text(
                           formatInr(p.mrpCase, decimals: false),
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 11,
+                          style: TextStyle(
+                            fontSize: 11 * scale,
                             color: AppColors.muted,
                             decoration: TextDecoration.lineThrough,
                           ),
@@ -763,8 +814,10 @@ class _ProductCard extends StatelessWidget {
                       : p.isLowStock
                           ? 'Low stock · ${p.availableStock}'
                           : 'Stock ${p.availableStock}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 11 * scale,
                     color: p.isOutOfStock ? AppColors.dangerText : AppColors.muted,
                   ),
                 ),

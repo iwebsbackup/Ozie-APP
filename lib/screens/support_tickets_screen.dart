@@ -897,15 +897,14 @@ class _TicketDetailSheet extends StatelessWidget {
                         : _tRed,
                   ),
                   const SizedBox(width: 10),
-                  Text(
+                  Flexible(child: Text(
                     t.satisfactionRating == 'satisfied'
                         ? 'You marked: Satisfied'
                         : 'You marked: Not satisfied',
                     style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.text),
-                  ),
+                        color: AppColors.text), maxLines: 1, overflow: TextOverflow.ellipsis)),
                 ],
               ),
             ),

@@ -143,10 +143,16 @@ class _CatalogScreenState extends State<CatalogScreen> {
           const SizedBox(width: 4),
         ],
       ),
-      body: CatalogTab(
-        key: _catalogKey,
-        highlightProductId: widget.highlightProductId,
-        highlightProductName: widget.highlightProductName,
+      // Side insets only (cutouts / fold hinge in landscape). Top is the
+      // app bar, bottom is handled inside the grid padding.
+      body: SafeArea(
+        top: false,
+        bottom: false,
+        child: CatalogTab(
+          key: _catalogKey,
+          highlightProductId: widget.highlightProductId,
+          highlightProductName: widget.highlightProductName,
+        ),
       ),
     );
   }

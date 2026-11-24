@@ -129,7 +129,7 @@ Niche **Retailer side** me jo jo features banaye gaye hain, unki complete list h
 | `v1/retailer/dispatch-history` | Dispatch history, mark received |
 | `v1/retailer/packing-orders` | Packing orders |
 | `v1/retailer/received-history` | Received history |
-| `v1/retailer/banners` | Promo banners, add to cart |
+| `v1/retailer/banners` | Promo banners, add to cart |  
 | `v1/retailer/support-tickets` | Support tickets, submit, rate |
 | `v1/retailer/returns` | Returns, submit return, claim return |
 | `v1/retailer/loan-applications` | Loan applications, submit loan |

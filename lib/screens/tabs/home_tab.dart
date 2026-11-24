@@ -6,6 +6,7 @@ import 'package:hugeicons/hugeicons.dart';
 import '../../core/api_client.dart';
 import '../../core/dashboard_service.dart';
 import '../../core/models.dart';
+import '../../core/responsive.dart';
 import '../../core/retailer_service.dart';
 import '../../widgets/app_widgets.dart';
 import '../../widgets/promo_banner_carousel.dart';
@@ -124,7 +125,11 @@ class _DashboardBody extends StatelessWidget {
 
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 28 + kBottomNavSpace),
+      padding: EdgeInsets.fromLTRB(
+          context.isSmallPhone ? 14 : (context.isCompact ? 20 : 28),
+          20,
+          context.isSmallPhone ? 14 : (context.isCompact ? 20 : 28),
+          28 + kBottomNavSpace),
       children: [
         if (schemes.isNotEmpty) ...[
           const _SectionTitle('Active Schemes'),
@@ -252,9 +257,14 @@ class _AmountBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(
-          formatInr(value, decimals: false),
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: color),
+        // Big amounts shrink instead of overflowing on narrow phones.
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            formatInr(value, decimals: false),
+            maxLines: 1,
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: color),
+          ),
         ),
         const SizedBox(height: 4),
         Text(label, style: const TextStyle(fontSize: 12, color: AppColors.muted)),
@@ -414,7 +424,7 @@ class _SchemeStripState extends State<_SchemeStrip> {
     return Column(
       children: [
         SizedBox(
-          height: 92,
+          height: context.fitText(92),
           child: PageView.builder(
             controller: _controller,
             itemCount: widget.schemes.length,
@@ -581,14 +591,22 @@ class _QuickActions extends StatelessWidget {
   };
 
   /// Small caption under the label, by action key.
+  // Subtitles disabled for now. Uncomment entries to bring them back.
   static const Map<String, String> _subtitles = {
-    'catalog': 'Browse Products',
-    'orders': 'Track & Review',
-    'payments': 'Pay & Dues',
-    'create_order': 'AI & Scan Upload',
-    'reports': 'Sales & Analytics',
-    'returns': 'Returns & reports',
+    // 'catalog': 'Browse Products',
+    // 'orders': 'Track & Review',
+    // 'payments': 'Pay & Dues',
+    // 'create_order': 'AI & Scan Upload',
+    // 'reports': 'Sales & Analytics',
   };
+
+  /// Fixed labels that override whatever the backend sends.
+  static const Map<String, String> _labelOverrides = {
+    'orders': 'Dispatch',
+    'returns': 'Returns',
+  };
+
+  String _labelFor(DashboardQuickAction a) => _labelOverrides[a.key] ?? a.label;
 
   IconData _iconFor(DashboardQuickAction a) {
     return _icons[a.key] ?? _icons[a.icon ?? ''] ?? Icons.grid_view_outlined;
@@ -692,7 +710,10 @@ class _QuickActions extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 18),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final itemWidth = ((constraints.maxWidth - 24) / 3).floorToDouble();
+          // 3 per row on phones, more on tablets / unfolded foldables.
+          final cols = (constraints.maxWidth / 110).floor().clamp(3, 6);
+          final itemWidth =
+              ((constraints.maxWidth - 12 * (cols - 1)) / cols).floorToDouble();
           return Wrap(
       spacing: 12,
       runSpacing: 22,
@@ -701,7 +722,7 @@ class _QuickActions extends StatelessWidget {
           width: itemWidth,
           // Fixed height so every tile stays the same size regardless of
           // how many lines the label wraps to.
-          height: 100,
+          height: context.fitText(100),
           child: InkWell(
             borderRadius: BorderRadius.circular(12),
             onTap: () => _tap(context, a),
@@ -713,10 +734,10 @@ class _QuickActions extends StatelessWidget {
                   _iconWidget(a),
                   const SizedBox(height: 10),
                   SizedBox(
-                    height: 36,
+                    height: context.fitText(36),
                     child: _subtitles[a.key] == null
                         ? Text(
-                            a.label,
+                            _labelFor(a),
                             textAlign: TextAlign.center,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
@@ -730,7 +751,7 @@ class _QuickActions extends StatelessWidget {
                         : Column(
                             children: [
                               Text(
-                                a.label,
+                                _labelFor(a),
                                 textAlign: TextAlign.center,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,

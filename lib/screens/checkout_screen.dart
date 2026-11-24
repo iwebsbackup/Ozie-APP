@@ -349,11 +349,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             const Icon(Icons.call_outlined,
                                 size: 14, color: AppColors.muted),
                             const SizedBox(width: 5),
-                            Text(
+                            Flexible(child: Text(
                               a.contact,
                               style: const TextStyle(
-                                  fontSize: 12.5, color: AppColors.muted),
-                            ),
+                                  fontSize: 12.5, color: AppColors.muted), maxLines: 1, overflow: TextOverflow.ellipsis)),
                           ],
                         ),
                       ],
@@ -364,14 +363,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             const Icon(Icons.check_circle,
                                 size: 14, color: AppColors.green),
                             const SizedBox(width: 5),
-                            Text(
+                            Flexible(child: Text(
                               footer,
                               style: const TextStyle(
                                 fontSize: 12,
                                 color: AppColors.successText,
                                 fontWeight: FontWeight.w600,
-                              ),
-                            ),
+                              ), maxLines: 1, overflow: TextOverflow.ellipsis)),
                           ],
                         ),
                       ],
@@ -504,12 +502,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       children: [
         const Icon(Icons.lock_outline, size: 14, color: AppColors.muted),
         const SizedBox(width: 6),
-        Text(
+        Flexible(child: Text(
           AppConfig.razorpayIsTest
               ? 'Razorpay TEST mode - no real money is charged'
               : 'Secure payment powered by Razorpay',
-          style: const TextStyle(fontSize: 12, color: AppColors.muted),
-        ),
+          style: const TextStyle(fontSize: 12, color: AppColors.muted), maxLines: 1, overflow: TextOverflow.ellipsis)),
       ],
     );
   }
@@ -575,10 +572,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         children: [
                           Icon(online ? Icons.lock_outline : Icons.check, size: 18),
                           const SizedBox(width: 8),
-                          Text(
-                            online
-                                ? 'Pay ${formatInr(d.payableAmount)}'
-                                : 'Place order - ${formatInr(d.payableAmount)}',
+                          Flexible(
+                            child: Text(
+                              online
+                                  ? 'Pay ${formatInr(d.payableAmount)}'
+                                  : 'Place order - ${formatInr(d.payableAmount)}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ],
                       ),

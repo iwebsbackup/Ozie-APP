@@ -174,9 +174,15 @@ class _LoginScreenState extends State<LoginScreen> {
     return SegmentedButton<String>(
       showSelectedIcon: false,
       segments: const [
-        ButtonSegment(value: 'retailer', label: Text('Retailer')),
-        ButtonSegment(value: 'distributor', label: Text('Distributor')),
-        ButtonSegment(value: 'delivery', label: Text('Delivery Boy')),
+        ButtonSegment(
+            value: 'retailer',
+            label: FittedBox(fit: BoxFit.scaleDown, child: Text('Retailer'))),
+        ButtonSegment(
+            value: 'distributor',
+            label: FittedBox(fit: BoxFit.scaleDown, child: Text('Distributor'))),
+        ButtonSegment(
+            value: 'delivery',
+            label: FittedBox(fit: BoxFit.scaleDown, child: Text('Delivery Boy'))),
       ],
       selected: {_role},
       style: ButtonStyle(
@@ -362,10 +368,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text(
+                    Flexible(child: const Text(
                       "Don't have an account? ",
-                      style: TextStyle(fontSize: 13, color: AppColors.muted),
-                    ),
+                      style: TextStyle(fontSize: 13, color: AppColors.muted), maxLines: 1, overflow: TextOverflow.ellipsis)),
                     GestureDetector(
                       onTap: busy
                           ? null

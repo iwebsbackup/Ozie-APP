@@ -1235,13 +1235,13 @@ class _OrderboxScreenState extends State<OrderboxScreen>
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('$count item${count == 1 ? '' : 's'} • Subtotal',
-                        style: const TextStyle(fontSize: 13, color: _slate)),
-                    Text(_inr(_subtotal),
+                    Flexible(child: Text('$count item${count == 1 ? '' : 's'} • Subtotal',
+                        style: const TextStyle(fontSize: 13, color: _slate), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                    Flexible(child: Text(_inr(_subtotal),
                         style: const TextStyle(
                             fontSize: 14,
                             color: Colors.white,
-                            fontWeight: FontWeight.w600)),
+                            fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis)),
                   ],
                 ),
                 if (_discount > 0)
@@ -1274,11 +1274,11 @@ class _OrderboxScreenState extends State<OrderboxScreen>
                             fontSize: 14,
                             color: Colors.white,
                             fontWeight: FontWeight.w600)),
-                    Text(_inr(_total),
+                    Flexible(child: Text(_inr(_total),
                         style: const TextStyle(
                             fontSize: 24,
                             color: Colors.white,
-                            fontWeight: FontWeight.w900)),
+                            fontWeight: FontWeight.w900), maxLines: 1, overflow: TextOverflow.ellipsis)),
                   ],
                 ),
               ],

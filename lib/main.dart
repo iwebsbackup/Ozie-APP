@@ -1,7 +1,9 @@
 import 'dart:ui' show PlatformDispatcher;
 
+// import 'package:device_lab/device_lab.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+// import 'package:flutter/foundation.dart' show kReleaseMode; // only for DeviceLab
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -11,6 +13,7 @@ import 'core/config.dart';
 import 'core/debug_log.dart';
 import 'core/location_tracker.dart';
 import 'core/push_service.dart';
+import 'core/responsive.dart';
 import 'core/router.dart';
 import 'core/test_mode.dart';
 import 'screens/login_screen.dart';
@@ -26,7 +29,7 @@ Future<void> _firebaseBgHandler(RemoteMessage message) async {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // app is portrait only (also locked in AndroidManifest: screenOrientation)
+  // phones: portrait only. Tablets/foldables unlock rotation (see ResponsiveScope).
   await SystemChrome.setPreferredOrientations(const [DeviceOrientation.portraitUp]);
 
   // show every uncaught error in the on-screen log box
@@ -67,6 +70,14 @@ Future<void> main() async {
 
   await TestMode.load();
 
+  // Device Lab disabled. To bring it back: uncomment this block, remove the
+  // plain runApp below, and uncomment device_lab in pubspec.yaml + import above.
+  // runApp(
+  //   DeviceLab(
+  //     enabled: !kReleaseMode,
+  //     builder: (_) => const OzieApp(),
+  //   ),
+  // );
   runApp(const OzieApp());
 }
 
@@ -80,8 +91,23 @@ class OzieApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       navigatorKey: navigatorKey,
       theme: buildTheme(),
-      builder: (context, child) =>
-          DebugBoxOverlay(child: child ?? const SizedBox.shrink()),
+      // locale: DeviceLab.localeOf(context),
+      builder: (context, child) {
+        // Device Lab disabled (was the OUTER layer around the lines below).
+        // return DeviceLab.appBuilder(
+        //   context,
+        //   DebugBoxOverlay(
+        //     child: ResponsiveScope(
+        //       child: child ?? const SizedBox.shrink(),
+        //     ),
+        //   ),
+        // );
+        return DebugBoxOverlay(
+          child: ResponsiveScope(
+            child: child ?? const SizedBox.shrink(),
+          ),
+        );
+      },
       home: const SplashScreen(),
     );
   }

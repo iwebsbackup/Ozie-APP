@@ -6,9 +6,10 @@ import 'package:flutter/services.dart';
 import 'package:hugeicons/hugeicons.dart';
 
 import '../core/models.dart';
+import '../core/responsive.dart';
 import '../core/push_service.dart';
+import '../widgets/adaptive_app_bar.dart';
 import '../widgets/app_widgets.dart';
-import '../widgets/shining_border_button.dart';
 import 'bank_card_screen.dart';
 import 'catalog_screen.dart';
 import 'notifications_screen.dart';
@@ -44,6 +45,54 @@ class _MainShellState extends State<MainShell> {
   static const List<String> _titles = ['Home', 'Schemes', 'View Orders', 'Settings'];
 
   /// Home shows logo + app name. Other tabs show the tab name.
+  // ---- bottom nav sizing (phones, foldables, tablets) ----
+  /// Gap under the bar. SafeArea already lifts the bar above the gesture /
+  /// 3-button bar, so only a hairline gap is added there; on devices with no
+  /// system inset the bar still floats a little off the screen edge.
+  double _navBottomGap(BuildContext context) {
+    final inset = MediaQuery.viewPaddingOf(context).bottom;
+    if (inset > 0) return 2;
+    return context.isSmallPhone ? 4 : 6;
+  }
+
+  /// How far (dp) the bar is lowered into the system gesture / 3-button
+  /// inset. Bigger = bar sits lower. Set to 0 for the old position.
+  static const double _navLowerBy = 8;
+
+  /// Lift above the screen bottom from the system inset. Phones with no
+  /// inset get 0 (only the small gap above is used).
+  double _navSystemLift(BuildContext context) {
+    final inset = MediaQuery.viewPaddingOf(context).bottom;
+    if (inset <= 0) return 0;
+    return math.max(0, inset - _navLowerBy);
+  }
+
+  /// Tab icon size by screen class.
+  double _navIconSize(BuildContext context) {
+    if (context.isSmallPhone) return 22;
+    if (context.isTablet) return 26;
+    return 24;
+  }
+
+  /// Nav bar width: full width minus margin on phones, capped on wide screens.
+  double _navBarWidth(BuildContext context) {
+    final margin = context.isSmallPhone ? 12.0 : 16.0;
+    final w = context.sw - margin * 2;
+    return w > 560 ? 560 : w;
+  }
+
+  /// Width of one tab slot (bar minus the gap under the mic, split in 4).
+  double _navSlot(BuildContext context) =>
+      (_navBarWidth(context) - 76) / 4;
+
+  /// One label size for all tabs (never a mix of big and shrunk labels).
+  double _navLabelSize(BuildContext context) {
+    final slot = _navSlot(context);
+    if (slot < 56) return 10.5;
+    if (slot < 66) return 11;
+    return 12;
+  }
+
   Widget _buildTitle(Color fg) {
     if (_index == 0) {
       return const Row(
@@ -163,55 +212,77 @@ class _MainShellState extends State<MainShell> {
             builder: (context, tab, _) {
               final fg =
                   onOrders ? OrdersTab.headerForeground(tab) : AppColors.text;
-              return AppBar(
-          backgroundColor:
-              onOrders ? OrdersTab.headerColor(tab) : AppColors.bg,
-          foregroundColor: fg,
-          systemOverlayStyle: onOrders && tab == 1
-              ? SystemUiOverlayStyle.light
-              : SystemUiOverlayStyle.dark,
-          surfaceTintColor: Colors.transparent,
-          scrolledUnderElevation: 0,
-          elevation: 0,
-          titleSpacing: 16,
-          title: _buildTitle(fg),
-          actions: [
-            // Opens the bank credit card details/application screen.
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: ShiningBorderButton(
-                onPressed: _openBankCard,
-                label: 'Apply For Card',
-              ),
-            ),
-            const SizedBox(width: 4),
-            IconButton(
-              tooltip: 'Notifications',
-              icon: HugeIcon(
-                icon: HugeIcons.strokeRoundedNotification01,
-                color: fg,
-              ),
-              onPressed: _openNotifications,
-            ),
-            const SizedBox(width: 4),
-          ],
+              return AdaptiveAppBar(
+                backgroundColor:
+                    onOrders ? OrdersTab.headerColor(tab) : AppColors.bg,
+                foregroundColor: fg,
+                systemOverlayStyle: onOrders && tab == 1
+                    ? SystemUiOverlayStyle.light
+                    : SystemUiOverlayStyle.dark,
+                // Back arrow only on View Orders tab -> goes back to Home.
+                leading: onOrders
+                    ? IconButton(
+                        tooltip: 'Back',
+                        icon: Icon(Icons.arrow_back_rounded, color: fg),
+                        onPressed: () => setState(() => _index = 0),
+                      )
+                    : null,
+                titleSpacing: onOrders ? 0 : 16,
+                title: _buildTitle(fg),
+                // Bank card CTA: full label -> "Apply" -> icon, by free space.
+                primaryAction: onOrders
+                    ? null
+                    : AdaptiveHeaderAction(
+                        label: 'Apply For Card',
+                        shortLabel: 'Apply',
+                        icon: Icons.credit_card_rounded,
+                        onPressed: _openBankCard,
+                      ),
+                actions: [
+                  IconButton(
+                    tooltip: 'Notifications',
+                    icon: HugeIcon(
+                      icon: HugeIcons.strokeRoundedNotification01,
+                      color: fg,
+                    ),
+                    onPressed: _openNotifications,
+                  ),
+                ],
               );
             },
           ),
         ),
-        body: IndexedStack(index: _index, children: pages),
-        bottomNavigationBar: SizedBox(
-          // 108 (bar + bump) + 16 (bottom margin)
-          height: _NavBarShape.totalHeight + 16,
+        // Nav bar sits above the system gesture/3-button bar (SafeArea), so
+        // push the pages up by the same inset (body is extended under the nav).
+        body: Padding(
+          padding: EdgeInsets.only(
+            bottom: _navSystemLift(context),
+          ),
+          child: IndexedStack(index: _index, children: pages),
+        ),
+        bottomNavigationBar: SafeArea(
+          // Sides only (cutouts / hinge). Bottom is handled by _navSystemLift
+          // so the bar can sit a little lower than the full system inset.
+          top: false,
+          bottom: false,
+          child: Padding(
+            padding: EdgeInsets.only(bottom: _navSystemLift(context)),
+            child: SizedBox(
+          // bar + bump + small bottom gap (system inset comes from SafeArea)
+          height: _NavBarShape.totalHeight + _navBottomGap(context),
           child: Stack(
             clipBehavior: Clip.none,
             children: [
               Positioned(
-                left: 16,
-                right: 16,
-                bottom: 16,
+                left: 0,
+                right: 0,
+                bottom: _navBottomGap(context),
                 height: _NavBarShape.totalHeight,
-                child: Stack(
+                child: Center(
+                  child: SizedBox(
+                    width: _navBarWidth(context),
+                    height: _NavBarShape.totalHeight,
+                    child: Stack(
                   clipBehavior: Clip.none,
                   children: [
                     // Bar with a curved bump on top, around the mic.
@@ -235,39 +306,51 @@ class _MainShellState extends State<MainShell> {
                       child: Row(
                         children: [
                           _NavItem(
+                            fontSize: _navLabelSize(context),
+                            iconSize: _navIconSize(context),
                             label: 'Home',
                             selected: _index == 0,
                             onTap: () => _selectPage(0),
-                            icon: (c) => HugeIcon(
-                                icon: HugeIcons.strokeRoundedHome03, color: c),
+                            icon: (c, s) => HugeIcon(
+                                icon: HugeIcons.strokeRoundedHome03, color: c, size: s),
                           ),
                           _NavItem(
+                            fontSize: _navLabelSize(context),
+                            iconSize: _navIconSize(context),
                             label: 'Schemes',
                             selected: _index == 1,
                             onTap: () => _selectPage(1),
-                            icon: (c) => Icon(
+                            icon: (c, s) => Icon(
                                 _index == 1
                                     ? Icons.local_offer
                                     : Icons.local_offer_outlined,
-                                color: c),
+                                color: c, size: s),
                           ),
                           // Gap under the mic button.
                           const SizedBox(width: 76),
                           _NavItem(
-                            label: 'View Orders',
+                            fontSize: _navLabelSize(context),
+                            iconSize: _navIconSize(context),
+                            // "View Orders" only when the slot is wide enough,
+                            // so every label keeps the same size.
+                            label: _navSlot(context) >= 80
+                                ? 'View Orders'
+                                : 'Orders',
                             selected: _index == 2,
                             onTap: () => _selectPage(2),
-                            icon: (c) => HugeIcon(
+                            icon: (c, s) => HugeIcon(
                                 icon: HugeIcons.strokeRoundedShoppingBag01,
-                                color: c),
+                                color: c, size: s),
                           ),
                           _NavItem(
+                            fontSize: _navLabelSize(context),
+                            iconSize: _navIconSize(context),
                             label: 'Settings',
                             selected: _index == 3,
                             onTap: () => _selectPage(3),
-                            icon: (c) => HugeIcon(
+                            icon: (c, s) => HugeIcon(
                                 icon: HugeIcons.strokeRoundedSettings02,
-                                color: c),
+                                color: c, size: s),
                           ),
                         ],
                       ),
@@ -281,8 +364,12 @@ class _MainShellState extends State<MainShell> {
                     ),
                   ],
                 ),
+                  ),
+                ),
               ),
             ],
+          ),
+          ),
           ),
         ),
       ),
@@ -337,15 +424,19 @@ class _MicButton extends StatelessWidget {
 
 /// One bottom-nav tab: icon + single-line label (shrinks if too wide).
 class _NavItem extends StatelessWidget {
-  final Widget Function(Color color) icon;
+  final Widget Function(Color color, double size) icon;
   final String label;
   final bool selected;
   final VoidCallback onTap;
+  final double fontSize;
+  final double iconSize;
   const _NavItem({
     required this.icon,
     required this.label,
     required this.selected,
     required this.onTap,
+    this.fontSize = 12,
+    this.iconSize = 24,
   });
 
   @override
@@ -359,7 +450,7 @@ class _NavItem extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              icon(color),
+              icon(color, iconSize),
               const SizedBox(height: 4),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -369,7 +460,7 @@ class _NavItem extends StatelessWidget {
                     label,
                     maxLines: 1,
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: fontSize,
                       fontWeight: FontWeight.w500,
                       color: color,
                     ),

@@ -7,6 +7,7 @@ import 'package:hugeicons/hugeicons.dart';
 import '../core/api_client.dart';
 import '../core/pending_payments_models.dart';
 import '../core/razorpay_service.dart';
+import '../core/responsive.dart';
 import '../core/retailer_service.dart';
 import '../widgets/app_widgets.dart';
 import '../widgets/pagination_bar.dart';
@@ -287,7 +288,7 @@ class _PendingPaymentsScreenState extends State<PendingPaymentsScreen> {
   Widget _filters() {
     return Container(
       color: _orange,
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 18),
+      padding: EdgeInsets.fromLTRB(context.pagePad, 4, context.pagePad, 18),
       child: Column(
         children: [
           Row(
@@ -394,7 +395,15 @@ class _PendingPaymentsScreenState extends State<PendingPaymentsScreen> {
     return ListView.separated(
       controller: _scroll,
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: EdgeInsets.fromLTRB(16, 16, 16, _selected.isEmpty ? 24 : 110),
+      padding: EdgeInsets.fromLTRB(
+        context.pagePad,
+        16,
+        context.pagePad,
+        // extendBody: list runs behind the floating bar, so leave room for
+        // it (grows with font scale) plus the system nav inset.
+        (_selected.isEmpty ? 24 : 78 * context.textScale + 24) +
+            MediaQuery.paddingOf(context).bottom,
+      ),
       itemCount: 1 + bodyCount + (showPager ? 1 : 0),
       separatorBuilder: (context, index) => const SizedBox(height: 12),
       itemBuilder: (context, idx) {
@@ -428,14 +437,15 @@ class _PendingPaymentsScreenState extends State<PendingPaymentsScreen> {
       letterSpacing: 0.4,
       color: Colors.white,
     );
-    const valueStyle = TextStyle(
-      fontSize: 30,
+    final small = context.isSmallPhone;
+    final valueStyle = TextStyle(
+      fontSize: context.fit(30, min: 24, max: 34),
       fontWeight: FontWeight.w800,
       height: 1.1,
       color: Colors.white,
     );
     return Container(
-      padding: const EdgeInsets.fromLTRB(22, 26, 22, 28),
+      padding: EdgeInsets.fromLTRB(small ? 16 : 22, small ? 20 : 26, small ? 16 : 22, small ? 22 : 28),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
@@ -455,7 +465,7 @@ class _PendingPaymentsScreenState extends State<PendingPaymentsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('TOTAL OUTSTANDING', style: labelStyle),
+                const Text('TOTAL OUTSTANDING', style: labelStyle, maxLines: 1, overflow: TextOverflow.ellipsis),
                 const SizedBox(height: 10),
                 FittedBox(
                   fit: BoxFit.scaleDown,
@@ -465,15 +475,19 @@ class _PendingPaymentsScreenState extends State<PendingPaymentsScreen> {
               ],
             ),
           ),
-          const SizedBox(width: 16),
+          SizedBox(width: small ? 12 : 16),
           Expanded(
             flex: 4,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('INVOICES PENDING', style: labelStyle),
+                const Text('INVOICES PENDING', style: labelStyle, maxLines: 1, overflow: TextOverflow.ellipsis),
                 const SizedBox(height: 10),
-                Text('$_totalCount', style: valueStyle),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text('$_totalCount', style: valueStyle),
+                ),
               ],
             ),
           ),
@@ -517,14 +531,19 @@ class _PendingPaymentsScreenState extends State<PendingPaymentsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: const TextStyle(fontSize: 11, color: AppColors.muted)),
+            Text(label, maxLines: 1, style: const TextStyle(fontSize: 11, color: AppColors.muted)),
             const SizedBox(height: 2),
-            Text(
-              formatInr(v),
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: color ?? AppColors.text,
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                formatInr(v),
+                maxLines: 1,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: color ?? AppColors.text,
+                ),
               ),
             ),
           ],
@@ -533,6 +552,7 @@ class _PendingPaymentsScreenState extends State<PendingPaymentsScreen> {
 
   Widget _card(PendingInvoice i) {
     final selected = _selected.contains(i.id);
+    final cp = context.isSmallPhone ? 12.0 : 14.0;
     final content = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -580,15 +600,14 @@ class _PendingPaymentsScreenState extends State<PendingPaymentsScreen> {
               children: [
                 const Icon(Icons.event_outlined, size: 14, color: AppColors.muted),
                 const SizedBox(width: 6),
-                Text(
+                Flexible(child: Text(
                   'Due date: ${formatDate(i.dueDate)}',
                   style: TextStyle(
                     fontSize: 12,
                     color: i.isOverdue && !i.isRequested
                         ? AppColors.dangerText
                         : AppColors.muted,
-                  ),
-                ),
+                  ), maxLines: 1, overflow: TextOverflow.ellipsis)),
               ],
             ),
           ],
@@ -599,7 +618,7 @@ class _PendingPaymentsScreenState extends State<PendingPaymentsScreen> {
             radius: 12,
             borderWidth: 1.6,
             child: Container(
-              padding: const EdgeInsets.all(13.4),
+              padding: EdgeInsets.all(cp - 0.6),
               decoration: BoxDecoration(
                 color: AppColors.card,
                 borderRadius: BorderRadius.circular(10.4),
@@ -608,7 +627,7 @@ class _PendingPaymentsScreenState extends State<PendingPaymentsScreen> {
             ),
           )
         : Container(
-            padding: const EdgeInsets.all(14),
+            padding: EdgeInsets.all(cp),
             decoration: BoxDecoration(
               color: AppColors.card,
               borderRadius: BorderRadius.circular(12),
@@ -625,59 +644,80 @@ class _PendingPaymentsScreenState extends State<PendingPaymentsScreen> {
   }
 
   Widget _actionBar() {
+    final small = context.isSmallPhone;
+    final pad = context.pagePad;
     return SafeArea(
       top: false,
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-        padding: const EdgeInsets.fromLTRB(22, 8, 8, 8),
-        decoration: BoxDecoration(
-          color: AppColors.card,
-          borderRadius: BorderRadius.circular(40),
-          border: Border.all(color: const Color(0xFFD5DBE8)),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${_selected.length} selected',
-                    style: const TextStyle(fontSize: 12, color: AppColors.muted),
+      child: Center(
+        heightFactor: 1,
+        child: ConstrainedBox(
+          // Tablets / unfolded foldables: keep the pill a sane width.
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: Container(
+            margin: EdgeInsets.fromLTRB(pad, 0, pad, 12),
+            padding: EdgeInsets.fromLTRB(small ? 16 : 22, 8, 8, 8),
+            decoration: BoxDecoration(
+              color: AppColors.card,
+              borderRadius: BorderRadius.circular(40),
+              border: Border.all(color: const Color(0xFFD5DBE8)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${_selected.length} selected',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 12, color: AppColors.muted),
+                      ),
+                      // One line always; shrinks instead of wrapping.
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          formatInr(_selectedDue),
+                          maxLines: 1,
+                          style: TextStyle(
+                            fontSize: context.fit(18, min: 16, max: 20),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  Text(
-                    formatInr(_selectedDue),
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                ),
+                SizedBox(width: small ? 6 : 8),
+                OutlinedButton(
+                  onPressed: _submitting ? null : _requestCollection,
+                  style: OutlinedButton.styleFrom(
+                    shape: const StadiumBorder(),
+                    padding: EdgeInsets.symmetric(horizontal: small ? 10 : 14, vertical: small ? 13 : 15),
                   ),
-                ],
-              ),
+                  child: const Text('Collect', maxLines: 1, style: TextStyle(fontWeight: FontWeight.w600)),
+                ),
+                const SizedBox(width: 6),
+                FilledButton(
+                  onPressed: _submitting ? null : _payOnline,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.blue,
+                    shape: const StadiumBorder(),
+                    padding: EdgeInsets.symmetric(horizontal: small ? 16 : 22, vertical: small ? 13 : 15),
+                  ),
+                  child: _submitting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text('Pay now', maxLines: 1, style: TextStyle(fontWeight: FontWeight.w600)),
+                ),
+              ],
             ),
-            OutlinedButton(
-              onPressed: _submitting ? null : _requestCollection,
-              style: OutlinedButton.styleFrom(
-                shape: const StadiumBorder(),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
-              ),
-              child: const Text('Collect', style: TextStyle(fontWeight: FontWeight.w600)),
-            ),
-            const SizedBox(width: 6),
-            FilledButton(
-              onPressed: _submitting ? null : _payOnline,
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.blue,
-                shape: const StadiumBorder(),
-                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 15),
-              ),
-              child: _submitting
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                    )
-                  : const Text('Pay now', style: TextStyle(fontWeight: FontWeight.w600)),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -773,7 +813,7 @@ class _DueDateRangeDialogState extends State<_DueDateRangeDialog> {
     return Dialog(
       backgroundColor: AppColors.card,
       surfaceTintColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      insetPadding: EdgeInsets.symmetric(horizontal: context.isSmallPhone ? 12 : 20, vertical: 24),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 380),

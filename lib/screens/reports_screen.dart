@@ -493,12 +493,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
               strokeWidth: 1.5,
             ),
             const SizedBox(width: 8),
-            Text(t,
+            Flexible(child: Text(t,
                 style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
                     letterSpacing: -0.2,
-                    color: AppColors.text)),
+                    color: AppColors.text), maxLines: 1, overflow: TextOverflow.ellipsis)),
           ],
         ),
       );

@@ -929,6 +929,10 @@ class ApprovedOrder {
   final String? createdAt;
   final String? formattedDate;
 
+  /// Full server map of this order (items, addresses, payment, logistics,
+  /// signed invoice_view_url ...). Parsed by OrderDetailData.
+  final Map<String, dynamic> raw;
+
   const ApprovedOrder({
     required this.id,
     this.orderNumber = '',
@@ -941,6 +945,7 @@ class ApprovedOrder {
     this.paymentColor = 'warning',
     this.createdAt,
     this.formattedDate,
+    this.raw = const {},
   });
 
   factory ApprovedOrder.fromJson(Map<String, dynamic> j) => ApprovedOrder(
@@ -955,6 +960,7 @@ class ApprovedOrder {
         paymentColor: _toStr(j['payment_color']) ?? 'warning',
         createdAt: _toStr(j['created_at']),
         formattedDate: _toStr(j['formatted_date']),
+        raw: j,
       );
 
   bool get isPaid => paymentStatus.toLowerCase() == 'paid';

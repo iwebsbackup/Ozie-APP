@@ -369,29 +369,23 @@ class _CartScreenState extends State<CartScreen> {
     );
   }
 
-  /// Up to 3 different brands, each with its own products.
+  /// Category-wise strips. Products API is already scoped to the retailer's
+  /// assigned manufacturer(s), so only those products show, grouped by category.
   Future<List<_BrandStrip>> _loadBrandStrips() async {
     try {
       final first = await RetailerService.getProducts(limit: 60);
-      var brands = first.brands.map((b) => b.trim()).where((b) => b.isNotEmpty).toList();
-      if (brands.isEmpty) {
-        brands = first.products
-            .map((p) => p.brand.trim())
-            .where((b) => b.isNotEmpty)
-            .toSet()
-            .toList();
-      }
+      final cats = first.categories.where((c) => c.id > 0 && c.name.trim().isNotEmpty).toList();
       final res = await Future.wait(
-        brands.take(5).map((b) async {
+        cats.take(8).map((c) async {
           try {
-            final r = await RetailerService.getProducts(brand: b, limit: 10);
-            return _BrandStrip(b, r.products);
+            final r = await RetailerService.getProducts(categoryId: c.id, limit: 10);
+            return _BrandStrip(c.name.trim(), r.products);
           } on ApiException {
-            return _BrandStrip(b, const []);
+            return _BrandStrip(c.name.trim(), const []);
           }
         }),
       );
-      return res.where((x) => x.products.isNotEmpty).take(3).toList();
+      return res.where((x) => x.products.isNotEmpty).toList();
     } on ApiException {
       return const [];
     }
@@ -422,7 +416,7 @@ class _CartScreenState extends State<CartScreen> {
     ];
   }
 
-  /// Tinted full-width block with 3 brand strips; runs to the screen bottom.
+  /// Tinted full-width block with category strips; runs to the screen bottom.
   Widget _suggestionSection(String title) {
     final bottomInset = MediaQuery.of(context).padding.bottom;
     final strips = _visibleStrips();

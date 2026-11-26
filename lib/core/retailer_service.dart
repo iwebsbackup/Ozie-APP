@@ -477,6 +477,24 @@ class RetailerService {
     return InvoiceDetail.fromJson(_dataOf(res));
   }
 
+  /// GET v1/retailer/invoice-link?id=<invoice/PO number> (or order_id=<id>).
+  /// Needs login (Bearer). Returns a signed, 7-day browser URL
+  /// (`.../index.php?route=v1/retailer/invoice_view&id=..&expires=..&token=..`).
+  static Future<String> getInvoiceLink({String? invoiceNumber, int? orderId}) async {
+    final query = <String, dynamic>{};
+    final inv = (invoiceNumber ?? '').trim();
+    if (inv.isNotEmpty) {
+      query['id'] = inv;
+    } else if (orderId != null && orderId > 0) {
+      query['order_id'] = orderId;
+    }
+    final res = await _api.get('v1/retailer/invoice-link', query: query);
+    final d = _dataOf(res);
+    final url = (d['invoice_view_url'] ?? d['url'] ?? '').toString().trim();
+    if (url.isEmpty) throw ApiException('Invoice link not available.');
+    return url;
+  }
+
   /// GET v1/retailer/dispatch-history. [tab]: orders | schemes.
   static Future<DispatchPage> getDispatchHistory({
     String tab = 'orders',

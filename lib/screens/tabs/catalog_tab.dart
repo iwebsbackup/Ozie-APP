@@ -44,6 +44,10 @@ class CatalogTabState extends State<CatalogTab>
   @override
   bool get wantKeepAlive => true;
 
+  /// Live cart count; the catalog app-bar badge listens to this so it updates
+  /// instantly on add / minus without waiting for a parent rebuild.
+  static final ValueNotifier<int> cartCountNotifier = ValueNotifier<int>(0);
+
   int get cartCount => _data?.cartCount ?? 0;
 
   void applySearch(String query) {
@@ -71,6 +75,7 @@ class CatalogTabState extends State<CatalogTab>
       limit: _pageSize,
     );
     _loading = _data == null;
+    if (_data != null) cartCountNotifier.value = _data!.cartCount;
     _load(reset: true);
   }
 
@@ -153,6 +158,7 @@ class CatalogTabState extends State<CatalogTab>
         _loadingMore = false;
         _error = null;
       });
+      cartCountNotifier.value = _data?.cartCount ?? 0;
       _scrollToHighlight();
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -291,6 +297,7 @@ class CatalogTabState extends State<CatalogTab>
   }) {
     final d = _data;
     if (d == null) return d;
+    if (cartCount != null) cartCountNotifier.value = cartCount;
     return ProductsCatalog(
       scopeNotice: d.scopeNotice,
       cartCount: cartCount ?? d.cartCount,

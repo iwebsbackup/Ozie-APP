@@ -8,6 +8,7 @@ import '../core/api_client.dart';
 import '../core/retailer_service.dart';
 import '../core/returns_models.dart';
 import '../widgets/app_widgets.dart';
+import '../widgets/invoice_link.dart';
 
 /// New return request. Pick invoice -> pick items + qty (bottles) -> reason
 /// + resolution -> submit. Pops with `true` on success.
@@ -392,7 +393,7 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
                 const Text('Selected invoice',
                     style: TextStyle(fontSize: 11.5, color: AppColors.muted)),
                 const SizedBox(height: 2),
-                Text(
+                InvoiceLink(
                   inv.invoiceNumber,
                   style: const TextStyle(
                     fontSize: 15.5,

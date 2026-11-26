@@ -118,11 +118,13 @@ String formatDate(String? raw) {
   return '${d.day} ${_kMonths[d.month - 1]} ${d.year}';
 }
 
-void showStatus(BuildContext context, String message, {bool error = false}) {
+void showStatus(BuildContext context, String message,
+    {bool error = false, Duration? duration}) {
   final messenger = ScaffoldMessenger.of(context);
   messenger.hideCurrentSnackBar();
   messenger.showSnackBar(
     SnackBar(
+      duration: duration ?? const Duration(seconds: 4),
       behavior: SnackBarBehavior.floating,
       backgroundColor: error ? AppColors.dangerBg : AppColors.successBg,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),

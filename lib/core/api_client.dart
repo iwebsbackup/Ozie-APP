@@ -45,6 +45,9 @@ class ApiClient {
 
   bool get hasToken => _token != null && _token!.isNotEmpty;
 
+  /// Current bearer token (for WebView / non-Dio requests that need auth).
+  String? get token => _token;
+
   Future<void> loadToken() async {
     _token = await _storage.read(key: _tokenKey);
   }
@@ -160,18 +163,22 @@ class ApiClient {
         onUnauthorized?.call();
       }
 
-      if (data is Map && data['message'] is String) {
-        final errs = data['errors'];
+      final serverMsg = _serverMessage(data);
+      if (serverMsg != null) {
+        final errs = data is Map ? data['errors'] : null;
         throw ApiException(
-          data['message'] as String,
+          serverMsg,
           statusCode: code,
           errors: errs is Map<String, dynamic> ? errs : null,
         );
       }
 
+      if (e.type == DioExceptionType.receiveTimeout) {
+        // Server reachable but slow (e.g. AI voice/text processing).
+        throw ApiException('Server took too long to respond. Please try again.');
+      }
       if (e.type == DioExceptionType.connectionTimeout ||
           e.type == DioExceptionType.sendTimeout ||
-          e.type == DioExceptionType.receiveTimeout ||
           e.type == DioExceptionType.connectionError) {
         throw ApiException('Network error. Check your internet connection.');
       }
@@ -181,5 +188,17 @@ class ApiClient {
         statusCode: code,
       );
     }
+  }
+
+  /// Best human message from an error body: {message}, {error: "x"} or
+  /// {error: {message: "x"}} (OpenAI style, if the server passes it through).
+  static String? _serverMessage(dynamic data) {
+    if (data is! Map) return null;
+    final m = data['message'];
+    if (m is String && m.trim().isNotEmpty) return m;
+    final err = data['error'];
+    if (err is String && err.trim().isNotEmpty) return err;
+    if (err is Map && err['message'] is String) return err['message'] as String;
+    return null;
   }
 }

@@ -12,7 +12,8 @@ import 'package:record/record.dart';
 
 import '../core/api_client.dart';
 import '../core/voice_order_service.dart';
-import 'checkout_screen.dart';
+import '../core/debug_log.dart';
+import '../widgets/ai_assistant_fab.dart';
 
 /// Bottom-nav mic -> "ORDERBOX by Ozie" (AI voice ordering agent).
 ///
@@ -46,7 +47,6 @@ class _OrderboxScreenState extends State<OrderboxScreen>
 
   final AudioRecorder _rec = AudioRecorder();
   String _transcript = ''; // sent back to server on preview
-  final TextEditingController _promo = TextEditingController();
 
   late final AnimationController _pulse = AnimationController(
       vsync: this, duration: const Duration(milliseconds: 1600))
@@ -68,35 +68,39 @@ class _OrderboxScreenState extends State<OrderboxScreen>
 
   final List<VoiceItem> _items = [];
   String _notes = '';
-  double _subtotal = 0;
-  double _discount = 0;
   double _total = 0;
-  String _couponMsg = '';
 
   bool get _hasResult => _items.isNotEmpty;
   List<VoiceItem> get _lines =>
       _items.where((e) => e.isMatched && e.quantity > 0).toList();
 
   @override
+  void initState() {
+    super.initState();
+    AiAssistantFab.setAssistantOpen(true); // hide AI FAB on this screen
+  }
+
+  @override
   void dispose() {
+    AiAssistantFab.setAssistantOpen(false);
     _tick?.cancel();
     _debounce?.cancel();
     _pulse.dispose();
     _spin.dispose();
     _wave.dispose();
-    _promo.dispose();
     _rec.dispose();
     super.dispose();
   }
 
   /* ----------------------------- helpers ----------------------------- */
 
-  void _toast(String msg, {bool error = false}) {
+  void _toast(String msg, {bool error = false, Duration? duration}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(
         content: Text(msg),
+        duration: duration ?? const Duration(seconds: 4),
         backgroundColor: error ? const Color(0xFF9F1239) : const Color(0xFF047857),
         behavior: SnackBarBehavior.floating,
       ));
@@ -242,7 +246,8 @@ class _OrderboxScreenState extends State<OrderboxScreen>
       _applyDraft(await job());
     } on ApiException catch (e) {
       _toast(e.message, error: true);
-    } catch (_) {
+    } catch (e, st) {
+      DebugLog.error('voice_order', e, st);
       _toast('Could not process the order. Please try again.', error: true);
     } finally {
       if (mounted) setState(() => _processing = false);
@@ -261,13 +266,11 @@ class _OrderboxScreenState extends State<OrderboxScreen>
       _items
         ..clear()
         ..addAll(d.items);
+      _mergeDuplicates();
       _transcript = d.transcript;
       _notes = d.notes;
-      _subtotal = d.subtotal;
-      _discount = d.discount;
-      _total = d.total;
-      _couponMsg = d.couponMessage;
     });
+    _recalcTotal();
   }
 
   void _reset() {
@@ -275,51 +278,39 @@ class _OrderboxScreenState extends State<OrderboxScreen>
     setState(() {
       _items.clear();
       _notes = '';
-      _subtotal = _discount = _total = 0;
-      _couponMsg = '';
-      _promo.clear();
+      _total = 0;
       _transcript = '';
     });
   }
 
-  void _schedulePreview() {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 500), _preview);
+  /// Total = sum of qty x price of matched lines. No coupons / schemes.
+  void _recalcTotal() {
+    final t = _lines.fold<double>(0, (a, e) => a + e.quantity * e.price);
+    if (!mounted) return;
+    setState(() => _total = t);
   }
 
-  Future<void> _preview() async {
-    final lines = _lines;
-    if (lines.isEmpty) {
-      if (!mounted) return;
-      setState(() => _subtotal = _discount = _total = 0);
-      return;
+  /// Same product on more than one line -> one line, quantities added.
+  /// Unmatched lines stay as they are.
+  void _mergeDuplicates() {
+    final first = <int, VoiceItem>{};
+    final out = <VoiceItem>[];
+    for (final it in _items) {
+      if (!it.isMatched) {
+        out.add(it);
+        continue;
+      }
+      final keep = first[it.productId];
+      if (keep == null) {
+        first[it.productId] = it;
+        out.add(it);
+      } else {
+        keep.quantity = (keep.quantity + it.quantity).clamp(1, 100000);
+      }
     }
-    setState(() => _busy = true);
-    try {
-      final d = await VoiceOrderService.preview(
-        lines,
-        promoCode: _promo.text.trim(),
-        transcript: _transcript,
-        notes: _notes,
-      );
-      if (!mounted) return;
-      setState(() {
-        _subtotal = d.subtotal;
-        _discount = d.discount;
-        _total = d.total;
-        _couponMsg = d.couponMessage;
-        _busy = false;
-      });
-    } on ApiException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _subtotal = lines.fold<double>(0, (a, e) => a + e.quantity * e.price);
-        _discount = 0;
-        _total = _subtotal;
-        _busy = false;
-      });
-      _toast(e.message, error: true);
-    }
+    _items
+      ..clear()
+      ..addAll(out);
   }
 
   void _changeQty(VoiceItem it, int delta) {
@@ -327,7 +318,7 @@ class _OrderboxScreenState extends State<OrderboxScreen>
     if (next < 1 || next > 9999) return;
     HapticFeedback.selectionClick();
     setState(() => it.quantity = next);
-    _schedulePreview();
+    _recalcTotal();
   }
 
   void _remove(VoiceItem it) {
@@ -335,7 +326,7 @@ class _OrderboxScreenState extends State<OrderboxScreen>
     if (_items.isEmpty) {
       _reset();
     } else {
-      _schedulePreview();
+      _recalcTotal();
     }
   }
 
@@ -352,8 +343,11 @@ class _OrderboxScreenState extends State<OrderboxScreen>
   Future<void> _assign(VoiceItem it) async {
     final p = await _pickProduct();
     if (p == null || !mounted) return;
-    setState(() => it.assign(p));
-    _schedulePreview();
+    setState(() {
+      it.assign(p);
+      _mergeDuplicates();
+    });
+    _recalcTotal();
   }
 
   Future<void> _addProduct() async {
@@ -366,28 +360,21 @@ class _OrderboxScreenState extends State<OrderboxScreen>
       }
     }
     setState(() => _items.add(VoiceItem.fromProduct(p)));
-    _schedulePreview();
+    _recalcTotal();
   }
 
-  /// Saves lines to the cart. [checkout] true -> open Checkout after.
-  Future<void> _save({required bool checkout}) async {
+  /// Adds matched lines to the cart, shows "Added to Cart" for ~2.5s, resets.
+  Future<void> _save() async {
     final lines = _lines;
     if (lines.isEmpty || _busy) return;
-    _debounce?.cancel();
     setState(() => _busy = true);
     try {
-      final msg =
-          await VoiceOrderService.confirm(lines, promoCode: _promo.text.trim());
+      await VoiceOrderService.confirm(lines);
       if (!mounted) return;
       setState(() => _busy = false);
-      if (checkout) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute<void>(builder: (_) => const CheckoutScreen()),
-        );
-      } else {
-        _toast(msg);
-        _reset();
-      }
+      HapticFeedback.lightImpact();
+      _toast('Added to Cart', duration: const Duration(milliseconds: 2500));
+      _reset();
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _busy = false);
@@ -574,9 +561,7 @@ class _OrderboxScreenState extends State<OrderboxScreen>
                   height: size,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    gradient: const RadialGradient(
-                      colors: [Color(0xFF0F172A), Color(0xFF020716)],
-                    ),
+                    color: Colors.white,
                     border: Border.all(color: _cyan, width: 3),
                     boxShadow: [
                       BoxShadow(
@@ -587,7 +572,10 @@ class _OrderboxScreenState extends State<OrderboxScreen>
                   ),
                   child: child,
                 ),
-                child: Center(child: _robotFace(size * 0.62)),
+                child: Padding(
+                  padding: EdgeInsets.all(size * 0.1),
+                  child: ClipOval(child: _micImage(size * 0.8)),
+                ),
               ),
             ],
           ),
@@ -596,92 +584,13 @@ class _OrderboxScreenState extends State<OrderboxScreen>
     );
   }
 
-  Widget _robotFace(double s) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: s * 0.1,
-          height: s * 0.12,
-          color: const Color(0xFFE2E8F0),
-        ),
-        Container(
-          width: s * 0.16,
-          height: s * 0.16,
-          decoration: const BoxDecoration(color: _cyan, shape: BoxShape.circle),
-        ),
-        const SizedBox(height: 2),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: s * 0.1,
-              height: s * 0.26,
-              decoration: BoxDecoration(
-                color: const Color(0xFFCBD5E1),
-                borderRadius: BorderRadius.circular(6),
-              ),
-            ),
-            Container(
-              width: s,
-              height: s * 0.74,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Colors.white, Color(0xFFCBD5E1)],
-                ),
-                borderRadius: BorderRadius.circular(s * 0.3),
-              ),
-              child: Center(
-                child: Container(
-                  width: s * 0.78,
-                  height: s * 0.46,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF0B1B3F),
-                    borderRadius: BorderRadius.circular(s * 0.2),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _eye(s * 0.17),
-                      _eye(s * 0.17),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            Container(
-              width: s * 0.1,
-              height: s * 0.26,
-              decoration: BoxDecoration(
-                color: const Color(0xFFCBD5E1),
-                borderRadius: BorderRadius.circular(6),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _eye(double d) => Container(
+  Widget _micImage(double d) => Image.asset(
+        'assets/images/Voicechat-icons.png',
         width: d,
         height: d,
-        decoration: BoxDecoration(
-          color: _cyan,
-          shape: BoxShape.circle,
-          boxShadow: [BoxShadow(color: _cyan.withOpacity(0.8), blurRadius: 8)],
-        ),
-        child: Align(
-          alignment: const Alignment(-0.35, -0.35),
-          child: Container(
-            width: d * 0.28,
-            height: d * 0.28,
-            decoration:
-                const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-          ),
-        ),
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) =>
+            Icon(Icons.mic_rounded, color: _blue, size: d * 0.5),
       );
 
   Widget _speechPill() {
@@ -961,51 +870,6 @@ class _OrderboxScreenState extends State<OrderboxScreen>
               style: TextStyle(color: _sky, fontWeight: FontWeight.w700)),
         ),
       ),
-      const SizedBox(height: 4),
-      Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _promo,
-              textCapitalization: TextCapitalization.characters,
-              style: const TextStyle(color: Colors.white),
-              cursorColor: _cyan,
-              decoration: InputDecoration(
-                hintText: 'Promo code',
-                hintStyle: const TextStyle(color: Color(0xFF64748B)),
-                isDense: true,
-                filled: true,
-                fillColor: const Color(0xF20F172A),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0x6600B0FF)),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0x6600B0FF)),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          OutlinedButton(
-            onPressed: _preview,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: _sky,
-              side: const BorderSide(color: _sky),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-            ),
-            child: const Text('Apply'),
-          ),
-        ],
-      ),
-      if (_couponMsg.isNotEmpty)
-        Padding(
-          padding: const EdgeInsets.only(top: 6),
-          child: Text(_couponMsg,
-              style: const TextStyle(fontSize: 12.5, color: Color(0xFF34D399))),
-        ),
     ];
   }
 
@@ -1223,88 +1087,36 @@ class _OrderboxScreenState extends State<OrderboxScreen>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: _navy,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0x6600B0FF)),
-            ),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Flexible(child: Text('$count item${count == 1 ? '' : 's'} • Subtotal',
-                        style: const TextStyle(fontSize: 13, color: _slate), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                    Flexible(child: Text(_inr(_subtotal),
-                        style: const TextStyle(
-                            fontSize: 14,
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                  ],
-                ),
-                if (_discount > 0)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Align(
-                      alignment: Alignment.centerRight,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: const Color(0x3310B981),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text('${_inr(_discount)} Savings applied',
-                            style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF34D399))),
-                      ),
-                    ),
-                  ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    const Text('Grand Total',
-                        style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600)),
-                    Flexible(child: Text(_inr(_total),
-                        style: const TextStyle(
-                            fontSize: 24,
-                            color: Colors.white,
-                            fontWeight: FontWeight.w900), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
-                child: _gradBtn(
-                  'Save to Cart',
-                  const [Color(0xFF059669), Color(0xFF047857)],
-                  canSave ? () => _save(checkout: false) : null,
-                ),
+              Flexible(
+                child: Text('$count item${count == 1 ? '' : 's'} • Total',
+                    style: const TextStyle(fontSize: 13, color: _slate),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _gradBtn(
-                  'Confirm & Checkout',
-                  const [_blue, Color(0xFF0055CC)],
-                  canSave ? () => _save(checkout: true) : null,
-                  glow: true,
-                  loading: _busy,
-                ),
+              Flexible(
+                child: Text(_inr(_total),
+                    style: const TextStyle(
+                        fontSize: 20,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
               ),
             ],
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: _gradBtn(
+              'Add to Cart',
+              const [Color(0xFF059669), Color(0xFF047857)],
+              canSave ? _save : null,
+              glow: true,
+              loading: _busy,
+            ),
           ),
         ],
       ),

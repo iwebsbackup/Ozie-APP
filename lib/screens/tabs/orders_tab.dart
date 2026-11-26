@@ -7,6 +7,7 @@ import '../../core/api_client.dart';
 import '../../core/models.dart';
 import '../../core/retailer_service.dart';
 import '../../widgets/app_widgets.dart';
+import '../order_details_screen.dart';
 
 class OrdersTab extends StatefulWidget {
   /// Called with the active tab index (0 = Review, 1 = Approved) so the
@@ -1027,8 +1028,20 @@ class _ApprovedPaneState extends State<_ApprovedPane> {
 
   Widget _orderTile(ApprovedOrder o) {
     final paid = o.isPaid;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => OrderDetailsScreen(order: o)),
+        ),
+        child: _orderTileBody(o, paid),
+      ),
+    );
+  }
+
+  Widget _orderTileBody(ApprovedOrder o, bool paid) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: AppColors.card,

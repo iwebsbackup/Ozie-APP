@@ -18,6 +18,7 @@ import 'core/router.dart';
 import 'core/test_mode.dart';
 import 'screens/login_screen.dart';
 import 'screens/splash_screen.dart';
+import 'widgets/ai_assistant_fab.dart';
 import 'widgets/app_widgets.dart';
 
 /// Background / killed state mein push aane pe chalta hai. Top-level hona zaroori.
@@ -90,6 +91,7 @@ class OzieApp extends StatelessWidget {
       title: 'Ozie',
       debugShowCheckedModeBanner: false,
       navigatorKey: navigatorKey,
+      navigatorObservers: [AiFabNavigatorObserver()],
       theme: buildTheme(),
       // locale: DeviceLab.localeOf(context),
       builder: (context, child) {
@@ -102,10 +104,18 @@ class OzieApp extends StatelessWidget {
         //     ),
         //   ),
         // );
-        return DebugBoxOverlay(
-          child: ResponsiveScope(
-            child: child ?? const SizedBox.shrink(),
-          ),
+        return Stack(
+          textDirection: TextDirection.ltr,
+          fit: StackFit.expand,
+          children: [
+            DebugBoxOverlay(
+              child: ResponsiveScope(
+                child: child ?? const SizedBox.shrink(),
+              ),
+            ),
+            // Floating "AI Business Assistant" button (logged-in users only).
+            const AiAssistantFab(),
+          ],
         );
       },
       home: const SplashScreen(),

@@ -5,12 +5,14 @@ import 'package:hugeicons/hugeicons.dart';
 
 import '../../core/api_client.dart';
 import '../../core/dashboard_service.dart';
+import '../../core/live_refresh.dart';
 import '../../core/models.dart';
 import '../../core/responsive.dart';
 import '../../core/retailer_service.dart';
 import '../../widgets/app_widgets.dart';
 import '../../widgets/promo_banner_carousel.dart';
 import '../create_order_screen.dart';
+import '../dispatch_screen.dart';
 import '../invoices_screen.dart';
 import '../pending_payments_screen.dart';
 import '../returns_screen.dart';
@@ -33,12 +35,27 @@ class HomeTab extends StatefulWidget {
 
 class _HomeTabState extends State<HomeTab> {
   late Future<RetailerDashboard> _future;
+  late final LivePoller _poller;
 
   @override
   void initState() {
     super.initState();
     _future = DashboardService.getRetailer();
     RetailerService.getProducts(limit: 12);
+    _poller = LivePoller(onTick: _silentRefresh)..start();
+  }
+
+  @override
+  void dispose() {
+    _poller.dispose();
+    super.dispose();
+  }
+
+  /// Background refetch: no spinner, errors ignored, old data stays on screen.
+  Future<void> _silentRefresh() async {
+    final d = await DashboardService.getRetailer();
+    if (!mounted) return;
+    setState(() => _future = Future.value(d));
   }
 
   Future<void> _refresh() async {
@@ -603,6 +620,7 @@ class _QuickActions extends StatelessWidget {
   /// Fixed labels that override whatever the backend sends.
   static const Map<String, String> _labelOverrides = {
     'orders': 'Dispatch',
+    'dispatch': 'Dispatch',
     'returns': 'Returns',
   };
 
@@ -625,6 +643,7 @@ class _QuickActions extends StatelessWidget {
           strokeWidth: 1.5,
         );
       case 'orders':
+      case 'dispatch':
         return HugeIcon(
           icon: HugeIcons.strokeRoundedDeliveryTruck01,
           size: 34,
@@ -670,7 +689,10 @@ class _QuickActions extends StatelessWidget {
         onViewCatalog?.call();
         return;
       case 'orders':
-        onViewOrders?.call();
+      case 'dispatch':
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => const DispatchScreen()),
+        );
         return;
       case 'payments':
         Navigator.of(context).push(

@@ -10,6 +10,7 @@ import '../core/returns_models.dart';
 import '../widgets/app_widgets.dart';
 import 'cart_screen.dart';
 import 'return_form_screen.dart';
+import '../widgets/invoice_link.dart';
 
 /// Retailer returns: history with status filter + search, claim approved
 /// returns, and start a new return request.
@@ -436,7 +437,7 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                 Row(
                   children: [
                     Expanded(
-                      child: Text(
+                      child: InvoiceLink(
                         r.invoiceNumber,
                         style: const TextStyle(
                           fontSize: 15,

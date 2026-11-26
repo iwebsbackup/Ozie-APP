@@ -12,6 +12,7 @@ import '../core/retailer_service.dart';
 import '../widgets/app_widgets.dart';
 import '../widgets/pagination_bar.dart';
 import '../widgets/shining_border_button.dart';
+import '../widgets/invoice_link.dart';
 
 /// Retailer pending payments: summary, search, date filter, infinite scroll,
 /// multi-select + "Request Collection".
@@ -572,7 +573,7 @@ class _PendingPaymentsScreenState extends State<PendingPaymentsScreen> {
                     alignment: Alignment.centerLeft,
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Text(
+                      child: InvoiceLink(
                         i.invoiceNumber,
                         style: const TextStyle(
                           fontSize: 15,

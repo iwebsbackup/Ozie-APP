@@ -20,6 +20,7 @@ class ScanProduct {
   final double price; // per case
   final String unitSize;
   final String category;
+  final String photoUrl;
 
   const ScanProduct({
     required this.id,
@@ -28,6 +29,7 @@ class ScanProduct {
     required this.price,
     required this.unitSize,
     required this.category,
+    this.photoUrl = '',
   });
 
   factory ScanProduct.fromJson(Map<String, dynamic> j) => ScanProduct(
@@ -37,6 +39,7 @@ class ScanProduct {
         price: _d(j['price']),
         unitSize: _s(j['unit_size']),
         category: _s(j['product_category'] ?? j['category']),
+        photoUrl: _s(j['photo_url'] ?? j['image_url'] ?? j['image']),
       );
 }
 
@@ -92,6 +95,7 @@ class ScanItem {
   double price;
   String brand;
   String unitSize;
+  String photoUrl;
   int matchConfidence;
   List<int> suggestedProductIds;
 
@@ -103,6 +107,7 @@ class ScanItem {
     this.price = 0,
     this.brand = '',
     this.unitSize = '',
+    this.photoUrl = '',
     this.matchConfidence = 0,
     this.suggestedProductIds = const [],
   });
@@ -120,6 +125,7 @@ class ScanItem {
       price: _d(j['price']),
       brand: _s(j['brand']),
       unitSize: _s(j['unit_size']),
+      photoUrl: _s(j['photo_url'] ?? j['image_url'] ?? j['image']),
       matchConfidence: _i(j['match_confidence']),
       suggestedProductIds: (j['suggested_product_ids'] is List)
           ? (j['suggested_product_ids'] as List).map(_i).toList()
@@ -133,6 +139,7 @@ class ScanItem {
         price: p.price,
         brand: p.brand,
         unitSize: p.unitSize,
+        photoUrl: p.photoUrl,
       );
 
   void assign(ScanProduct p) {
@@ -140,6 +147,7 @@ class ScanItem {
     name = p.name;
     brand = p.brand;
     unitSize = p.unitSize;
+    photoUrl = p.photoUrl;
     price = p.price;
   }
 

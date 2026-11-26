@@ -9,6 +9,7 @@ import '../core/received_models.dart';
 import '../core/retailer_service.dart';
 import '../widgets/app_widgets.dart';
 import 'invoice_view_screen.dart';
+import '../widgets/invoice_link.dart';
 
 /// Retailer received orders (delivered history). Search, infinite scroll.
 /// Read-only. API: GET v1/retailer/received-history.
@@ -385,7 +386,7 @@ class _ReceivedScreenState extends State<ReceivedScreen> {
                           onTap: () => _openInvoice(o),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(vertical: 4),
-                            child: Text(
+                            child: InvoiceLink(
                               o.invoiceNumber,
                               style: const TextStyle(
                                 fontSize: 15,

@@ -10,6 +10,7 @@ import '../core/retailer_service.dart';
 import '../widgets/app_widgets.dart';
 import '../widgets/pagination_bar.dart';
 import 'invoice_view_screen.dart';
+import '../widgets/invoice_link.dart';
 
 /// Retailer packing: approved orders under packing / packed (not yet
 /// dispatched). Search, pagination, progress stepper. Read-only.
@@ -385,7 +386,7 @@ class _PackingScreenState extends State<PackingScreen> {
                     onTap: () => _openInvoice(o),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Text(
+                      child: InvoiceLink(
                         o.invoiceNumber,
                         style: const TextStyle(
                           fontSize: 15,

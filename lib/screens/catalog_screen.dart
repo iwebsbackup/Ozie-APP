@@ -34,6 +34,9 @@ class _CatalogScreenState extends State<CatalogScreen> {
 
   void _syncCartCount() {
     final count = _catalogKey.currentState?.cartCount ?? 0;
+    if (_catalogKey.currentState != null) {
+      CatalogTabState.cartCountNotifier.value = count;
+    }
     if (count != _cartCount) {
       setState(() => _cartCount = count);
     }
@@ -134,10 +137,13 @@ class _CatalogScreenState extends State<CatalogScreen> {
             IconButton(
               tooltip: 'Cart',
               onPressed: _openCart,
-              icon: Badge(
-                isLabelVisible: _cartCount > 0,
-                label: Text('$_cartCount'),
-                child: const Icon(Icons.shopping_cart_outlined, color: AppColors.text),
+              icon: ValueListenableBuilder<int>(
+                valueListenable: CatalogTabState.cartCountNotifier,
+                builder: (_, count, __) => Badge(
+                  isLabelVisible: count > 0,
+                  label: Text('$count'),
+                  child: const Icon(Icons.shopping_cart_outlined, color: AppColors.text),
+                ),
               ),
             ),
           const SizedBox(width: 4),

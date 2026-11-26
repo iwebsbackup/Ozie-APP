@@ -6,6 +6,7 @@ import '../core/api_client.dart';
 import '../core/invoice_models.dart';
 import '../core/retailer_service.dart';
 import '../widgets/app_widgets.dart';
+import '../widgets/invoice_link.dart';
 
 /// Coloured pill for invoice payment status (Paid / Pending / Partial ...).
 class InvoiceStatusBadge extends StatelessWidget {
@@ -226,7 +227,7 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
           Row(
             children: [
               Expanded(
-                child: Text(
+                child: InvoiceLink(
                   inv.invoiceNumber,
                   style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
                 ),

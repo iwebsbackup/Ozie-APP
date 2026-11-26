@@ -10,16 +10,14 @@ import '../core/api_client.dart';
 import '../core/scan_order_models.dart';
 import '../core/scan_order_service.dart';
 import '../widgets/app_widgets.dart';
-import 'checkout_screen.dart';
 
 /// Quick Action -> "Create Order" (AI & Scan Upload).
 ///
 /// Flow (API: v1/retailer/scan-order):
 ///   1. Take photo / pick image of a purchase order or invoice.
 ///   2. action=scan        -> AI reads lines + matches to catalog.
-///   3. Fix lines (qty, pick product, add/remove). action=recalculate
-///      keeps totals + schemes in sync.
-///   4. action=confirm     -> lines go to cart -> Checkout.
+///   3. Fix lines (qty, pick product, add/remove). Total = qty x price.
+///   4. action=confirm     -> lines go to cart ("Added to Cart").
 class CreateOrderScreen extends StatefulWidget {
   /// AppBar title. Mic button opens this screen as "Orderbox".
   final String title;
@@ -47,12 +45,8 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
   bool _hasResult = false;
 
   double _subtotal = 0;
-  double _savings = 0;
-  List<AppliedScheme> _applied = const [];
-  List<SuggestedScheme> _suggested = const [];
 
   bool _scanning = false;
-  bool _recalcBusy = false;
   bool _confirming = false;
 
   @override
@@ -67,7 +61,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
     super.dispose();
   }
 
-  double get _grand => (_subtotal - _savings).clamp(0, double.infinity);
+  double get _grand => _subtotal;
   List<ScanItem> get _matched => _items.where((e) => e.isMatched).toList();
   int get _unmatchedCount => _items.where((e) => !e.isMatched).length;
 
@@ -94,7 +88,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
       final bytes = await x.readAsBytes();
       if (!mounted) return;
       if (bytes.length > 5 * 1024 * 1024) {
-        showStatus(context, 'Image 5MB se badi hai. Choti image choose karo.',
+        showStatus(context, 'Image is larger than 5MB. Please choose a smaller image.',
             error: true);
         return;
       }
@@ -103,9 +97,6 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
         _items.clear();
         _hasResult = false;
         _subtotal = 0;
-        _savings = 0;
-        _applied = const [];
-        _suggested = const [];
       });
     } catch (_) {
       if (!mounted) return;
@@ -124,11 +115,11 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
         _items
           ..clear()
           ..addAll(r.items);
+        _mergeDuplicates();
         _hasResult = true;
         _scanning = false;
       });
-      // Server subtotal counts unmatched lines too; re-sync on matched only.
-      await _recalc();
+      _recalc();
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _scanning = false);
@@ -140,56 +131,32 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
     }
   }
 
-  void _scheduleRecalc() {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 500), _recalc);
-  }
+  /// Total = qty x price of matched lines. No schemes / coupons.
+  void _scheduleRecalc() => _recalc();
 
-  Future<void> _recalc() async {
-    final matched = _matched;
-    if (matched.isEmpty) {
-      if (!mounted) return;
-      setState(() {
-        _subtotal = 0;
-        _savings = 0;
-        _applied = const [];
-        _suggested = const [];
-      });
-      return;
-    }
-    setState(() => _recalcBusy = true);
-    try {
-      final r = await ScanOrderService.recalculate(matched);
-      if (!mounted) return;
-      setState(() {
-        _subtotal = r.subtotal;
-        _savings = r.schemeSavings;
-        _applied = r.applied;
-        _suggested = r.suggested;
-        _recalcBusy = false;
-      });
-    } on ApiException {
-      if (!mounted) return;
-      // Fallback: local math, no scheme info.
-      setState(() {
-        _subtotal = matched.fold<double>(0, (a, e) => a + e.lineTotal);
-        _recalcBusy = false;
-      });
-    }
+  void _recalc() {
+    if (!mounted) return;
+    setState(() {
+      _subtotal = _matched.fold<double>(0, (a, e) => a + e.lineTotal);
+    });
   }
 
   Future<void> _confirm() async {
     final matched = _matched;
     if (matched.isEmpty || _confirming) return;
-    _debounce?.cancel();
     setState(() => _confirming = true);
     try {
       await ScanOrderService.confirm(matched);
       if (!mounted) return;
-      setState(() => _confirming = false);
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute<void>(builder: (_) => const CheckoutScreen()),
-      );
+      setState(() {
+        _confirming = false;
+        _imageBytes = null;
+        _items.clear();
+        _hasResult = false;
+        _subtotal = 0;
+      });
+      showStatus(context, 'Added to Cart',
+          duration: const Duration(milliseconds: 2500));
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _confirming = false);
@@ -199,14 +166,36 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
 
   /* ----------------------------- line edits ----------------------------- */
 
+  /// Same product on more than one line -> one line, quantities added.
+  /// Not-matched lines are left as they are.
+  void _mergeDuplicates() {
+    final first = <int, ScanItem>{};
+    final out = <ScanItem>[];
+    for (final it in _items) {
+      final id = it.productId;
+      if (id == null || id <= 0) {
+        out.add(it);
+        continue;
+      }
+      final keep = first[id];
+      if (keep == null) {
+        first[id] = it;
+        out.add(it);
+      } else {
+        keep.quantity = (keep.quantity + it.quantity).clamp(1, 99999);
+      }
+    }
+    _items
+      ..clear()
+      ..addAll(out);
+  }
+
   void _changeQty(ScanItem it, int delta) {
     final next = it.quantity + delta;
     if (next < 1 || next > 9999) return;
     setState(() => it.quantity = next);
     if (it.isMatched) {
-      // Subtotal moves instantly; schemes catch up after the debounce.
-      setState(() => _subtotal = _matched.fold<double>(0, (a, e) => a + e.lineTotal));
-      _scheduleRecalc();
+      _recalc();
     }
   }
 
@@ -218,7 +207,10 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
   Future<void> _selectProduct(ScanItem it) async {
     final p = await _openPicker(suggestedIds: it.suggestedProductIds);
     if (p == null || !mounted) return;
-    setState(() => it.assign(p));
+    setState(() {
+      it.assign(p);
+      _mergeDuplicates();
+    });
     _scheduleRecalc();
   }
 
@@ -296,12 +288,14 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
           ],
           if (_hasResult) ...[
             const SizedBox(height: 22),
-            _buildItemsHeader(),
+            _sectionHeader('Matched Items (${_matched.length})', showAdd: true),
             const SizedBox(height: 10),
-            if (_items.isEmpty) _buildEmptyItems() else _buildItemsBlock(),
-            if (_matched.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              _buildSummary(),
+            if (_items.isEmpty) _buildEmptyItems() else _buildMatchedBlock(),
+            if (_unmatchedCount > 0) ...[
+              const SizedBox(height: 22),
+              _sectionHeader('Not Matched ($_unmatchedCount)'),
+              const SizedBox(height: 10),
+              _buildNotMatchedBlock(),
             ],
           ],
         ],
@@ -364,7 +358,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                     ),
                     SizedBox(height: 2),
                     Text(
-                      'Photo lo, AI items match kar dega',
+                      'Take a photo and AI will match the items',
                       style: TextStyle(fontSize: 12.5, color: AppColors.muted),
                     ),
                   ],
@@ -382,7 +376,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
             const SizedBox(height: 10),
             const Center(
               child: Text(
-                'Reading your order... thoda time lag sakta hai',
+                'Reading your order... this may take a moment',
                 style: TextStyle(fontSize: 12, color: AppColors.muted),
               ),
             ),
@@ -683,12 +677,12 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
 
   /* ---- items ---- */
 
-  Widget _buildItemsHeader() {
+  Widget _sectionHeader(String title, {bool showAdd = false}) {
     return Row(
       children: [
         Expanded(
           child: Text(
-            'Order Items (${_items.length})',
+            title,
             style: const TextStyle(
               fontSize: 17,
               fontWeight: FontWeight.w700,
@@ -696,19 +690,20 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
             ),
           ),
         ),
-        TextButton(
-          onPressed: _addManual,
-          style: TextButton.styleFrom(
-            foregroundColor: AppColors.blue,
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            minimumSize: const Size(0, 32),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        if (showAdd)
+          TextButton(
+            onPressed: _addManual,
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.blue,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              minimumSize: const Size(0, 32),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: const Text(
+              '+ Add item',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
           ),
-          child: const Text(
-            '+ Add item',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-          ),
-        ),
       ],
     );
   }
@@ -740,160 +735,67 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
     );
   }
 
-  /// One grouped card (like the cart): warning banner on top, then rows.
-  Widget _buildItemsBlock() {
+  _ScanItemRow _row(ScanItem it) => _ScanItemRow(
+        item: it,
+        onMinus: () => _changeQty(it, -1),
+        onPlus: () => _changeQty(it, 1),
+        onRemove: () => _removeItem(it),
+        onSelect: () => _selectProduct(it),
+      );
+
+  /// Matched lines: 5 per page, swipe sideways for the next 5.
+  Widget _buildMatchedBlock() {
+    final list = _matched;
+    if (list.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+        decoration: _cardDeco(),
+        child: const Text(
+          'No matched items yet. Fix the items below or tap "+ Add item".',
+          style: TextStyle(fontSize: 12.5, color: AppColors.muted),
+        ),
+      );
+    }
+    return Container(
+      decoration: _cardDeco(),
+      clipBehavior: Clip.antiAlias,
+      child: _PagedRows(children: [for (final it in list) _row(it)]),
+    );
+  }
+
+  /// Not matched / unavailable lines: always at the bottom, 5 per page.
+  Widget _buildNotMatchedBlock() {
+    final list = _items.where((e) => !e.isMatched).toList();
     return Container(
       decoration: _cardDeco(),
       clipBehavior: Clip.antiAlias,
       child: Column(
         children: [
-          if (_unmatchedCount > 0)
-            Container(
-              width: double.infinity,
-              color: _orangeBg,
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-              child: Row(
-                children: [
-                  const Icon(Icons.info_outline, size: 16, color: _orange),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      '$_unmatchedCount line match nahi hui. Product select karo, warna add nahi hogi.',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: _orangeText,
-                        height: 1.3,
-                      ),
+          Container(
+            width: double.infinity,
+            color: _orangeBg,
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline, size: 16, color: _orange),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '${list.length} ${list.length == 1 ? 'line was' : 'lines were'} not matched. Select a product, or it will not be added.',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: _orangeText,
+                      height: 1.3,
                     ),
                   ),
-                ],
-              ),
-            ),
-          for (var i = 0; i < _items.length; i++) ...[
-            if (i > 0 || _unmatchedCount > 0)
-              const Divider(height: 1, color: AppColors.border),
-            _ScanItemRow(
-              item: _items[i],
-              onMinus: () => _changeQty(_items[i], -1),
-              onPlus: () => _changeQty(_items[i], 1),
-              onRemove: () => _removeItem(_items[i]),
-              onSelect: () => _selectProduct(_items[i]),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  /* ---- summary ---- */
-
-  Widget _buildSummary() {
-    Widget row(String l, String v, {Color? color, bool bold = false}) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Row(
-            children: [
-              Text(
-                l,
-                style: TextStyle(
-                  fontSize: bold ? 15 : 13.5,
-                  fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
-                  color: AppColors.text,
                 ),
-              ),
-              const Spacer(),
-              Text(
-                v,
-                style: TextStyle(
-                  fontSize: bold ? 17 : 13.5,
-                  fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
-                  color: color ?? AppColors.text,
-                ),
-              ),
-            ],
-          ),
-        );
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-      decoration: _cardDeco(radius: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Order Summary',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: AppColors.text,
+              ],
             ),
           ),
-          const SizedBox(height: 8),
-          row('Subtotal', formatInr(_subtotal)),
-          if (_savings > 0)
-            row('Scheme savings', '- ${formatInr(_savings)}',
-                color: AppColors.successText),
-          const Divider(height: 18, color: AppColors.border),
-          row('Grand Total', formatInr(_grand), bold: true),
-          if (_applied.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            ..._applied.map(
-              (a) => _noteStrip(
-                icon: Icons.check_circle,
-                bg: AppColors.successBg,
-                fg: AppColors.successText,
-                text:
-                    '${a.title}${a.code != null ? ' (${a.code})' : ''} · saved ${formatInr(a.discount)}',
-              ),
-            ),
-          ],
-          if (_suggested.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            ..._suggested.map(
-              (s) => _noteStrip(
-                icon: Icons.lightbulb_outline,
-                bg: _orangeBg,
-                fg: _orangeText,
-                text: '${s.title}: ${s.message}',
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _noteStrip({
-    required IconData icon,
-    required Color bg,
-    required Color fg,
-    required String text,
-  }) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 16, color: fg),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: fg,
-                height: 1.3,
-              ),
-            ),
-          ),
+          const Divider(height: 1, color: AppColors.border),
+          _PagedRows(children: [for (final it in list) _row(it)]),
         ],
       ),
     );
@@ -935,14 +837,6 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                         color: AppColors.text,
                       ),
                     ),
-                    if (_recalcBusy) ...[
-                      const SizedBox(width: 8),
-                      const SizedBox(
-                        width: 12,
-                        height: 12,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    ],
                   ],
                 ),
               ],
@@ -971,11 +865,155 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                         color: Colors.white,
                       ),
                     )
-                  : const Text('Proceed to Checkout'),
+                  : const Text('Add to Cart'),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+/* ----------------------------- product photo ----------------------------- */
+
+/// Product picture with an icon fallback (no photo / load error).
+class _ProductThumb extends StatelessWidget {
+  final String url;
+  final double size;
+  final IconData icon;
+  final Color bg;
+  final Color fg;
+
+  const _ProductThumb({
+    required this.url,
+    required this.size,
+    required this.icon,
+    required this.bg,
+    required this.fg,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fallback = ColoredBox(
+      color: bg,
+      child: Center(child: Icon(icon, size: size * 0.42, color: fg)),
+    );
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: url.isEmpty
+            ? fallback
+            : Image.network(
+                url,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => fallback,
+                loadingBuilder: (_, child, prog) =>
+                    prog == null ? child : fallback,
+              ),
+      ),
+    );
+  }
+}
+
+/* ----------------------------- paged rows ----------------------------- */
+
+/// Rows in pages of [pageSize] (default 5). Swipe sideways for the next page.
+/// Height follows the tallest page, so no fixed height is needed.
+class _PagedRows extends StatefulWidget {
+  final List<Widget> children;
+  final int pageSize;
+  const _PagedRows({required this.children, this.pageSize = 5});
+
+  @override
+  State<_PagedRows> createState() => _PagedRowsState();
+}
+
+class _PagedRowsState extends State<_PagedRows> {
+  int _page = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = widget.children;
+    final size = widget.pageSize;
+    final pages = (rows.length / size).ceil().clamp(1, 1000);
+    final current = _page.clamp(0, pages - 1);
+
+    return LayoutBuilder(
+      builder: (context, c) {
+        final w = c.maxWidth;
+        Widget pageOf(int p) {
+          final slice = rows.skip(p * size).take(size).toList();
+          return SizedBox(
+            width: w,
+            child: Column(
+              children: [
+                for (var i = 0; i < slice.length; i++) ...[
+                  if (i > 0) const Divider(height: 1, color: AppColors.border),
+                  slice[i],
+                ],
+              ],
+            ),
+          );
+        }
+
+        final body = pages == 1
+            ? pageOf(0)
+            : NotificationListener<ScrollNotification>(
+                onNotification: (n) {
+                  if (n.metrics.axis == Axis.horizontal && w > 0) {
+                    final p = (n.metrics.pixels / w).round();
+                    if (p != _page) setState(() => _page = p);
+                  }
+                  return false;
+                },
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  physics: const PageScrollPhysics(),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [for (var p = 0; p < pages; p++) pageOf(p)],
+                  ),
+                ),
+              );
+
+        return Column(
+          children: [
+            body,
+            if (pages > 1) ...[
+              const Divider(height: 1, color: AppColors.border),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    for (var p = 0; p < pages; p++)
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        margin: const EdgeInsets.symmetric(horizontal: 3),
+                        width: p == current ? 16 : 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: p == current
+                              ? AppColors.blue
+                              : AppColors.border,
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                      ),
+                    const SizedBox(width: 10),
+                    Text(
+                      '${current + 1}/$pages  •  swipe',
+                      style: const TextStyle(
+                          fontSize: 11, color: AppColors.muted),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 }
@@ -1018,19 +1056,12 @@ class _ScanItemRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: SizedBox(
-              width: 56,
-              height: 56,
-              child: ColoredBox(
-                color: matched ? AppColors.inputBg : const Color(0xFFFFF1DD),
-                child: Icon(
-                  matched ? Icons.inventory_2_outlined : Icons.help_outline,
-                  color: matched ? AppColors.muted : const Color(0xFFFF8A00),
-                ),
-              ),
-            ),
+          _ProductThumb(
+            url: matched ? item.photoUrl : '',
+            size: 56,
+            icon: matched ? Icons.inventory_2_outlined : Icons.help_outline,
+            bg: matched ? AppColors.inputBg : const Color(0xFFFFF1DD),
+            fg: matched ? AppColors.muted : const Color(0xFFFF8A00),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1278,16 +1309,12 @@ class _ProductPickerState extends State<_ProductPicker> {
             padding: const EdgeInsets.symmetric(vertical: 10),
             child: Row(
               children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: AppColors.inputBg,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: const Icon(Icons.inventory_2_outlined,
-                      size: 20, color: AppColors.muted),
+                _ProductThumb(
+                  url: p.photoUrl,
+                  size: 44,
+                  icon: Icons.inventory_2_outlined,
+                  bg: AppColors.inputBg,
+                  fg: AppColors.muted,
                 ),
                 const SizedBox(width: 12),
                 Expanded(

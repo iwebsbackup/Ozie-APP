@@ -10,6 +10,7 @@ import '../core/dispatch_models.dart';
 import '../core/retailer_service.dart';
 import '../widgets/app_widgets.dart';
 import 'invoice_view_screen.dart';
+import '../widgets/invoice_link.dart';
 
 /// Retailer dispatch history: Orders / Schemes tabs, search, infinite scroll,
 /// "Mark as Received" (delivery confirmation).
@@ -261,7 +262,7 @@ class _DispatchListState extends State<_DispatchList>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(it.invoiceNumber, style: const TextStyle(fontWeight: FontWeight.w700)),
+              InvoiceLink(it.invoiceNumber, style: const TextStyle(fontWeight: FontWeight.w700)),
               const SizedBox(height: 12),
               CheckboxListTile(
                 contentPadding: EdgeInsets.zero,

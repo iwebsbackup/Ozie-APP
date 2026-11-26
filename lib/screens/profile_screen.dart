@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../core/api_client.dart';
+import '../core/live_refresh.dart';
 import '../core/models.dart';
 import '../core/profile_service.dart';
 import '../core/constants.dart';
@@ -36,10 +37,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     _load();
+    _poller = LivePoller(onTick: _silentRefresh)..start();
+  }
+
+  late final LivePoller _poller;
+
+  /// Background refetch (credit limit etc). Skipped while user is editing.
+  Future<void> _silentRefresh() async {
+    if (_editing || _saving || _loading) return;
+    final p = await ProfileService.get();
+    if (!mounted || _editing || _saving) return;
+    setState(() => _profile = p);
   }
 
   @override
   void dispose() {
+    _poller.dispose();
     _nameCtrl.dispose();
     _shopCtrl.dispose();
     _addressCtrl.dispose();

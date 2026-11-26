@@ -1,4 +1,6 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../core/api_client.dart';
 import '../core/auth_service.dart';
@@ -25,6 +27,14 @@ class _LoginScreenState extends State<LoginScreen> {
   final _dNameCtrl = TextEditingController();
   final _dMobileCtrl = TextEditingController();
 
+  static const _termsUrl = 'https://demo.orderezee.com/terms.php';
+  static const _privacyUrl = 'https://demo.orderezee.com/privacy.php';
+
+  late final TapGestureRecognizer _termsTap =
+      TapGestureRecognizer()..onTap = () => _openUrl(_termsUrl);
+  late final TapGestureRecognizer _privacyTap =
+      TapGestureRecognizer()..onTap = () => _openUrl(_privacyUrl);
+
   bool _obscure = true;
   bool _agree = true;
   bool _loading = false;
@@ -34,8 +44,22 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _testOn = TestMode.enabled.value;
   String _role = 'retailer';
 
+  Future<void> _openUrl(String url) async {
+    try {
+      final ok =
+          await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      if (!ok && mounted) {
+        showStatus(context, 'Could not open link.', error: true);
+      }
+    } catch (_) {
+      if (mounted) showStatus(context, 'Could not open link.', error: true);
+    }
+  }
+
   @override
   void dispose() {
+    _termsTap.dispose();
+    _privacyTap.dispose();
     _idCtrl.dispose();
     _pwCtrl.dispose();
     _dNameCtrl.dispose();
@@ -312,13 +336,40 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     const SizedBox(width: 4),
-                    const Expanded(
+                    Expanded(
                       child: Padding(
-                        padding: EdgeInsets.only(top: 6),
-                        child: Text(
-                          'I have read and agree to the Ozie Terms & Conditions and Privacy Policy.',
-                          style: TextStyle(
-                              fontSize: 11, color: AppColors.muted, height: 1.4),
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text.rich(
+                          TextSpan(
+                            style: const TextStyle(
+                                fontSize: 11,
+                                color: AppColors.muted,
+                                height: 1.4),
+                            children: [
+                              const TextSpan(
+                                  text: 'I have read and agree to the Ozie '),
+                              TextSpan(
+                                text: 'Terms & Conditions',
+                                recognizer: _termsTap,
+                                style: const TextStyle(
+                                  color: AppColors.blue,
+                                  fontWeight: FontWeight.w600,
+                                  decoration: TextDecoration.underline,
+                                ),
+                              ),
+                              const TextSpan(text: ' and '),
+                              TextSpan(
+                                text: 'Privacy Policy',
+                                recognizer: _privacyTap,
+                                style: const TextStyle(
+                                  color: AppColors.blue,
+                                  fontWeight: FontWeight.w600,
+                                  decoration: TextDecoration.underline,
+                                ),
+                              ),
+                              const TextSpan(text: '.'),
+                            ],
+                          ),
                         ),
                       ),
                     ),

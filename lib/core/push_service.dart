@@ -9,6 +9,7 @@ import '../screens/notifications_screen.dart';
 import 'api_client.dart';
 import 'config.dart';
 import 'debug_log.dart';
+import 'live_refresh.dart';
 import 'notification_router.dart';
 import 'router.dart';
 
@@ -78,9 +79,13 @@ class PushService {
 
     // 3. FCM listeners (independent of local notifications)
     try {
-      FirebaseMessaging.onMessage.listen(_onForeground);
+      FirebaseMessaging.onMessage.listen((m) {
+        LiveRefresh.bump(); // credit/limit etc. changed -> screens refetch
+        _onForeground(m);
+      });
       FirebaseMessaging.onMessageOpenedApp.listen((m) {
         // DebugLog.log('onMessageOpenedApp data=${m.data}');
+        LiveRefresh.bump();
         _openNotifications(link: _linkOf(m));
       });
       FirebaseMessaging.instance.onTokenRefresh.listen((t) {

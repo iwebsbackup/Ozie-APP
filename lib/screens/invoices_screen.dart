@@ -11,6 +11,7 @@ import '../core/invoice_models.dart';
 import '../core/retailer_service.dart';
 import '../widgets/app_widgets.dart';
 import 'invoice_view_screen.dart';
+import '../widgets/invoice_link.dart';
 
 /// Retailer invoices list: search, status + date filter, infinite scroll.
 /// Tap a card -> [InvoiceViewScreen].
@@ -604,7 +605,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
             Row(
               children: [
                 Expanded(
-                  child: Text(
+                  child: InvoiceLink(
                     i.invoiceNumber,
                     style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                     overflow: TextOverflow.ellipsis,
